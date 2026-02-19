@@ -44,52 +44,72 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
+            setLoading(true);
 
             if (currentUser) {
-                // Fetch user profile from Firestore, create if not exists
-                const userRef = doc(db, "users", currentUser.uid);
-                const userSnap = await getDoc(userRef);
-
-                if (userSnap.exists()) {
-                    const data = userSnap.data() as Profile;
-
-                    // Check if user should be admin but isn't
-                    const ADMIN_EMAILS = ["abubackerraiyan@gmail.com", "dhl.abu@gmail.com"];
-                    if (currentUser.email && ADMIN_EMAILS.includes(currentUser.email) && (data.role !== 'admin' || data.status !== 'approved')) {
-                        await updateDoc(userRef, {
-                            role: 'admin',
-                            status: 'approved'
-                        });
-                        data.role = 'admin';
-                        data.status = 'approved';
-                        toast.success("Profile upgraded to Admin");
-                    }
-
-                    setProfile(data);
-                } else {
-                    // Create new profile
-                    const ADMIN_EMAILS = ["abubackerraiyan@gmail.com", "dhl.abu@gmail.com"];
-                    const isAdmin = currentUser.email && ADMIN_EMAILS.includes(currentUser.email);
-
-                    const newProfile: Profile = {
-                        id: currentUser.uid,
-                        email: currentUser.email || "",
-                        full_name: currentUser.displayName || "User",
-                        avatar_url: currentUser.photoURL || null,
-                        role: isAdmin ? "admin" : "student",
-                        status: isAdmin ? "approved" : "pending",
-                        bio: null,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    };
+                try {
+                    const userRef = doc(db, "users", currentUser.uid);
+                    let userSnap;
 
                     try {
-                        await setDoc(userRef, newProfile);
-                        setProfile(newProfile);
-                    } catch (error) {
-                        console.error("Error creating profile:", error);
-                        toast.error("Failed to create user profile");
+                        userSnap = await getDoc(userRef);
+                    } catch (err) {
+                        console.error("Error fetching user profile:", err);
+                        // If we can't fetch, we can't proceed much, but let's try to handle "admin" rescue if possible
+                        userSnap = { exists: () => false, data: () => undefined }; // Mock non-existent to trigger creation attempt
                     }
+
+                    const ADMIN_EMAILS = ["abubackerraiyan@gmail.com", "dhl.abu@gmail.com"];
+                    const isAdminEmail = currentUser.email && ADMIN_EMAILS.some(email => email.toLowerCase() === currentUser.email?.toLowerCase());
+
+                    if (userSnap.exists()) {
+                        const data = userSnap.data() as Profile;
+
+                        // Check if user should be admin but isn't
+                        if (isAdminEmail && (data.role !== 'admin' || data.status !== 'approved')) {
+                            try {
+                                await updateDoc(userRef, {
+                                    role: 'admin',
+                                    status: 'approved'
+                                });
+                                toast.success("Profile upgraded to Admin");
+                            } catch (error) {
+                                console.error("Error upgrading admin profile:", error);
+                                // Even if DB update fails, update local state so they can login
+                            }
+                            // Force update local state
+                            data.role = 'admin';
+                            data.status = 'approved';
+                        }
+
+                        setProfile(data);
+                    } else {
+                        // Create new profile
+                        const newProfile: Profile = {
+                            id: currentUser.uid,
+                            email: currentUser.email || "",
+                            full_name: currentUser.displayName || "User",
+                            avatar_url: currentUser.photoURL || null,
+                            role: isAdminEmail ? "admin" : "student",
+                            status: isAdminEmail ? "approved" : "pending",
+                            bio: null,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        };
+
+                        try {
+                            await setDoc(userRef, newProfile);
+                        } catch (error) {
+                            console.error("Error creating profile:", error);
+                            toast.error("Failed to save user profile");
+                        }
+
+                        // Set profile even if setDoc failed, so user can at least see the UI (though DB might be out of sync)
+                        setProfile(newProfile);
+                    }
+                } catch (error) {
+                    console.error("Unexpected auth error:", error);
+                    setProfile(null);
                 }
             } else {
                 setProfile(null);
