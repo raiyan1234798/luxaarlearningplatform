@@ -5,10 +5,18 @@ import Link from "next/link";
 import { Clock, BookOpen, LogOut } from "lucide-react";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function PendingPage() {
     const router = useRouter();
-    const { signOut } = useAuth();
+    const { signOut, profile } = useAuth();
+
+    // Auto-redirect if somehow an admin lands here (e.g. after background upgrade)
+    useEffect(() => {
+        if (profile?.role === "admin" && profile?.status === "approved") {
+            router.replace("/dashboard");
+        }
+    }, [profile, router]);
 
     async function handleSignOut() {
         await signOut();

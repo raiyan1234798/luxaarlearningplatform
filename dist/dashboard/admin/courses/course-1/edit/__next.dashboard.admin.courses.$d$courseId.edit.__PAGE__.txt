@@ -1,7 +1,0 @@
-1:"$Sreact.fragment"
-2:I[6818,["/_next/static/chunks/c9786af5f7016d01.js","/_next/static/chunks/824540e3933f9f12.js","/_next/static/chunks/c8fb6a4197a70837.js","/_next/static/chunks/5265963228028d7f.js","/_next/static/chunks/43e09da55326bcbf.js","/_next/static/chunks/359ccfa52cf285c2.js"],"default"]
-4:I[97367,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/0bd6498bda341889.js"],"OutletBoundary"]
-5:"$Sreact.suspense"
-0:{"buildId":"LV97AzQo0qdhy7mYIYqA0","rsc":["$","$1","c",{"children":[["$","$L2",null,{"params":"$@3"}],[["$","script","script-0",{"src":"/_next/static/chunks/43e09da55326bcbf.js","async":true}],["$","script","script-1",{"src":"/_next/static/chunks/359ccfa52cf285c2.js","async":true}]],["$","$L4",null,{"children":["$","$5",null,{"name":"Next.MetadataOutlet","children":"$@6"}]}]]}],"loading":null,"isPartial":false}
-3:{"courseId":"course-1"}
-6:null
