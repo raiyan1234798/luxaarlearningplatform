@@ -424,7 +424,7 @@ export default function AppShell({ children, profile }: AppShellProps) {
             </AnimatePresence>
 
             {/* Main content */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <div id="main-content" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, transition: "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)" }}>
                 {/* Top bar */}
                 <header
                     className="glass"
@@ -553,6 +553,9 @@ export default function AppShell({ children, profile }: AppShellProps) {
         @media (min-width: 768px) {
           #desktop-sidebar {
             display: flex !important;
+          }
+          #main-content {
+            margin-left: ${desktopSidebarOpen ? 240 : 0}px;
           }
         }
       `}</style>
