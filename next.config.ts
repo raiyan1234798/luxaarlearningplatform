@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "export",
   images: {
+    unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "**.supabase.co" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
@@ -9,11 +11,6 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "drive.google.com" },
       { protocol: "https", hostname: "images.unsplash.com" },
     ],
-  },
-  experimental: {
-    serverActions: {
-      allowedOrigins: ["localhost:3000"],
-    },
   },
 };
 
