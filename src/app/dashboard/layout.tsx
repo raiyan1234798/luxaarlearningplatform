@@ -17,7 +17,10 @@ export default function DashboardLayout({
         if (!loading && !user) {
             router.push("/login");
         } else if (!loading && profile) {
-            if (profile.status === "pending") {
+            // Admins should never be sent to pending/rejected, even if status is stale
+            if (profile.role === "admin") {
+                // do nothing, let them pass
+            } else if (profile.status === "pending") {
                 router.push("/pending");
             } else if (profile.status === "rejected") {
                 router.push("/rejected");
