@@ -34,6 +34,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const router = useRouter();
 
     useEffect(() => {
+        // Redirect 127.0.0.1 to localhost to fix Firebase Auth domain issues
+        if (typeof window !== 'undefined' && window.location.hostname === '127.0.0.1') {
+            const newUrl = window.location.href.replace('127.0.0.1', 'localhost');
+            window.location.replace(newUrl);
+        }
+    }, []);
+
+    useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
 
@@ -110,8 +118,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 // User closed popup, ignore
                 return;
             }
-            if (error.message && error.message.includes('domain is not authorized')) {
-                toast.error("Domain unauthorized! Please use 'localhost:3000' instead of '127.0.0.1'");
+            if (error.code === 'auth/unauthorized-domain' || (error.message && error.message.includes('domain is not authorized'))) {
+                toast.error("Domain unauthorized! Redirecting to localhost...");
+                if (typeof window !== 'undefined') {
+                    window.location.href = window.location.href.replace('127.0.0.1', 'localhost');
+                }
                 return;
             }
 
