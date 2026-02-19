@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                         userSnap = { exists: () => false, data: () => undefined }; // Mock non-existent to trigger creation attempt
                     }
 
-                    const ADMIN_EMAILS = ["abubackerraiyan@gmail.com", "dhl.abu@gmail.com"];
+                    const ADMIN_EMAILS = ["abubackerraiyan@gmail.com", "dhl.abu@gmail.com", "abubackerraaiyan@gmail.com"];
                     const isAdminEmail = currentUser.email && ADMIN_EMAILS.some(email => email.toLowerCase() === currentUser.email?.toLowerCase());
 
                     if (userSnap.exists()) {
