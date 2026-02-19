@@ -61,14 +61,14 @@ export default function AppShell({ children, profile }: AppShellProps) {
         // router.push("/login"); // Handled in AuthContext
     }
 
-    const SidebarContent = () => (
+    const SidebarContent = ({ onClose }: { onClose?: () => void }) => (
         <div
             style={{
                 display: "flex",
                 flexDirection: "column",
                 height: "100%",
                 padding: "0 0 24px",
-                minWidth: 240, // content stays fixed width while container shrinks
+                minWidth: 240,
             }}
         >
             {/* Logo */}
@@ -76,6 +76,9 @@ export default function AppShell({ children, profile }: AppShellProps) {
                 style={{
                     padding: "24px 20px 20px",
                     borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                 }}
             >
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -110,6 +113,24 @@ export default function AppShell({ children, profile }: AppShellProps) {
                         </div>
                     </div>
                 </div>
+
+                {onClose && (
+                    <button
+                        onClick={onClose}
+                        style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "rgba(255,255,255,0.5)",
+                            cursor: "pointer",
+                            padding: 4,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                        }}
+                    >
+                        <X size={20} />
+                    </button>
+                )}
             </div>
 
             {/* Role badge */}
@@ -384,7 +405,7 @@ export default function AppShell({ children, profile }: AppShellProps) {
                                 borderRight: "1px solid rgba(255,255,255,0.06)",
                             }}
                         >
-                            <SidebarContent />
+                            <SidebarContent onClose={() => setSidebarOpen(false)} />
                         </motion.div>
                     </>
                 )}
