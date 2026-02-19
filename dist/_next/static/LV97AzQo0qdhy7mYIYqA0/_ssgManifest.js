@@ -1,0 +1,1 @@
+self.__SSG_MANIFEST=new Set(["\u002Fdashboard\u002Fadmin\u002Fcourses\u002F[courseId]\u002Fedit","\u002Fdashboard\u002Fcourses\u002F[courseId]","\u002Fdashboard\u002Fcourses\u002F[courseId]\u002Flearn"]);self.__SSG_MANIFEST_CB&&self.__SSG_MANIFEST_CB()
