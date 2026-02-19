@@ -101,6 +101,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             router.push("/dashboard");
         } catch (error: any) {
             console.error("Error signing in with Google", error);
+
+            if (error.code === 'auth/popup-blocked') {
+                toast.error("Popup blocked! Please allow popups for this site.");
+                return;
+            }
+            if (error.code === 'auth/cancelled-popup-request') {
+                // User closed popup, ignore
+                return;
+            }
+            if (error.message && error.message.includes('domain is not authorized')) {
+                toast.error("Domain unauthorized! Please use 'localhost:3000' instead of '127.0.0.1'");
+                return;
+            }
+
             toast.error(error.message || "Failed to sign in");
         }
     };
