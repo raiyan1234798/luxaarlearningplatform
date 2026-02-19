@@ -46,13 +46,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                     setProfile(userSnap.data() as Profile);
                 } else {
                     // Create new profile
+                    const ADMIN_EMAILS = ["abubackerraiyan@gmail.com", "dhl.abu@gmail.com"];
+                    const isAdmin = currentUser.email && ADMIN_EMAILS.includes(currentUser.email);
+
                     const newProfile: Profile = {
                         id: currentUser.uid,
                         email: currentUser.email || "",
                         full_name: currentUser.displayName || "User",
                         avatar_url: currentUser.photoURL || null,
-                        role: "student", // Default role
-                        status: "pending", // Default status - require approval?
+                        role: isAdmin ? "admin" : "student",
+                        status: isAdmin ? "approved" : "pending",
                         bio: null,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString()

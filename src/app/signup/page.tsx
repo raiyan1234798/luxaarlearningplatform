@@ -38,12 +38,15 @@ export default function SignupPage() {
             const { user } = await createUserWithEmailAndPassword(auth, email, password);
             await updateProfile(user, { displayName: fullName });
 
+            const ADMIN_EMAILS = ["abubackerraiyan@gmail.com", "dhl.abu@gmail.com"];
+            const isAdmin = ADMIN_EMAILS.includes(email);
+
             await setDoc(doc(db, "users", user.uid), {
                 id: user.uid,
                 email,
                 full_name: fullName,
-                role: "student",
-                status: "pending",
+                role: isAdmin ? "admin" : "student",
+                status: isAdmin ? "approved" : "pending",
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
             });
@@ -58,6 +61,10 @@ export default function SignupPage() {
     }
 
     if (submitted) {
+        // If admin, show approved message
+        const ADMIN_EMAILS = ["abubackerraiyan@gmail.com", "dhl.abu@gmail.com"];
+        const isAdmin = ADMIN_EMAILS.includes(email);
+
         return (
             <div
                 style={{
@@ -88,7 +95,7 @@ export default function SignupPage() {
                             margin: "0 auto 24px",
                         }}
                     >
-                        <Clock size={28} color="#c9a84c" />
+                        {isAdmin ? <CheckCircle size={28} color="#c9a84c" /> : <Clock size={28} color="#c9a84c" />}
                     </div>
                     <h2
                         style={{
@@ -99,12 +106,21 @@ export default function SignupPage() {
                             color: "var(--text-primary)",
                         }}
                     >
-                        Request Submitted!
+                        {isAdmin ? "Account Approved!" : "Request Submitted!"}
                     </h2>
                     <p style={{ color: "var(--text-secondary)", lineHeight: 1.7, marginBottom: 24 }}>
-                        Your account has been created and your access request is{" "}
-                        <strong style={{ color: "var(--gold)" }}>pending admin approval</strong>. You&apos;ll
-                        receive an email once your account is approved.
+                        {isAdmin ? (
+                            <>
+                                Your admin account has been created and <strong style={{ color: "var(--gold)" }}>approved</strong>.
+                                You can now access the admin dashboard.
+                            </>
+                        ) : (
+                            <>
+                                Your account has been created and your access request is{" "}
+                                <strong style={{ color: "var(--gold)" }}>pending admin approval</strong>. You&apos;ll
+                                receive an email once your account is approved.
+                            </>
+                        )}
                     </p>
                     <div
                         style={{
