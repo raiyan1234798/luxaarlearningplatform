@@ -373,7 +373,7 @@ export default function AppShell({ children, profile }: AppShellProps) {
                 }}
                 id="desktop-sidebar"
             >
-                <SidebarContent />
+                <SidebarContent onClose={() => setDesktopSidebarOpen(false)} />
             </div>
 
             {/* Mobile sidebar overlay */}
