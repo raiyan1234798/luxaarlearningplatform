@@ -542,7 +542,9 @@ export default function AppShell({ children, profile }: AppShellProps) {
 
                 {/* Page content */}
                 <main style={{ flex: 1, overflow: "auto", padding: "28px 20px" }}>
-                    {children}
+                    <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
+                        {children}
+                    </div>
                 </main>
             </div>
 
