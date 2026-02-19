@@ -1,0 +1,31 @@
+[debug] [2026-02-19T04:35:57.879Z] ----------------------------------------------------------------------
+[debug] [2026-02-19T04:35:57.881Z] Command:       /opt/homebrew/Cellar/node/25.3.0/bin/node /opt/homebrew/bin/firebase deploy
+[debug] [2026-02-19T04:35:57.881Z] CLI Version:   15.5.1
+[debug] [2026-02-19T04:35:57.881Z] Platform:      darwin
+[debug] [2026-02-19T04:35:57.881Z] Node Version:  v25.3.0
+[debug] [2026-02-19T04:35:57.881Z] Time:          Thu Feb 19 2026 10:05:57 GMT+0530 (India Standard Time)
+[debug] [2026-02-19T04:35:57.881Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-02-19T04:35:58.848Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-02-19T04:35:58.848Z] > authorizing via signed-in user (abubackerraiyan@gmail.com)
+[debug] [2026-02-19T04:35:58.848Z] [iam] checking project luxaarlearning for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-02-19T04:35:58.849Z] Checked if tokens are valid: true, expires at: 1771479007248
+[debug] [2026-02-19T04:35:58.849Z] Checked if tokens are valid: true, expires at: 1771479007248
+[debug] [2026-02-19T04:35:58.850Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/luxaarlearning:testIamPermissions [none]
+[debug] [2026-02-19T04:35:58.850Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/luxaarlearning:testIamPermissions  x-goog-user-project=luxaarlearning
+[debug] [2026-02-19T04:35:58.850Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/luxaarlearning:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-02-19T04:36:02.114Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/luxaarlearning:testIamPermissions 403
+[debug] [2026-02-19T04:36:02.114Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/luxaarlearning:testIamPermissions {"error":{"code":403,"message":"Caller does not have required permission to use project luxaarlearning. Grant the caller the roles/serviceusage.serviceUsageConsumer role, or a custom role with the serviceusage.services.use permission, by visiting https://console.developers.google.com/iam-admin/iam/project?project=luxaarlearning and then retry. Propagation of the new permission may take a few minutes.","status":"PERMISSION_DENIED","details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"USER_PROJECT_DENIED","domain":"googleapis.com","metadata":{"consoleUrl":"https://console.developers.google.com/iam-admin/iam/project?project=luxaarlearning","containerInfo":"luxaarlearning","service":"cloudresourcemanager.googleapis.com","consumer":"projects/luxaarlearning"}},{"@type":"type.googleapis.com/google.rpc.LocalizedMessage","locale":"en-US","message":"Caller does not have required permission to use project luxaarlearning. Grant the caller the roles/serviceusage.serviceUsageConsumer role, or a custom role with the serviceusage.services.use permission, by visiting https://console.developers.google.com/iam-admin/iam/project?project=luxaarlearning and then retry. Propagation of the new permission may take a few minutes."},{"@type":"type.googleapis.com/google.rpc.Help","links":[{"description":"Google developer console IAM admin","url":"https://console.developers.google.com/iam-admin/iam/project?project=luxaarlearning"}]}]}}
+[debug] [2026-02-19T04:36:02.115Z] [iam] error while checking permissions, command may fail: Request to https://cloudresourcemanager.googleapis.com/v1/projects/luxaarlearning:testIamPermissions had HTTP Error: 403, Caller does not have required permission to use project luxaarlearning. Grant the caller the roles/serviceusage.serviceUsageConsumer role, or a custom role with the serviceusage.services.use permission, by visiting https://console.developers.google.com/iam-admin/iam/project?project=luxaarlearning and then retry. Propagation of the new permission may take a few minutes.
+[debug] [2026-02-19T04:36:02.115Z] Checked if tokens are valid: true, expires at: 1771479007248
+[debug] [2026-02-19T04:36:02.115Z] Checked if tokens are valid: true, expires at: 1771479007248
+[debug] [2026-02-19T04:36:02.115Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/luxaarlearning [none]
+[debug] [2026-02-19T04:36:03.114Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/luxaarlearning 403
+[debug] [2026-02-19T04:36:03.115Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/luxaarlearning {"error":{"code":403,"message":"The caller does not have permission","status":"PERMISSION_DENIED"}}
+[debug] [2026-02-19T04:36:03.115Z] Request to https://firebase.googleapis.com/v1beta1/projects/luxaarlearning had HTTP Error: 403, The caller does not have permission
+[debug] [2026-02-19T04:36:04.046Z] FirebaseError: Request to https://firebase.googleapis.com/v1beta1/projects/luxaarlearning had HTTP Error: 403, The caller does not have permission
+    at responseToError (/opt/homebrew/lib/node_modules/firebase-tools/lib/responseToError.js:53:12)
+    at RetryOperation._fn (/opt/homebrew/lib/node_modules/firebase-tools/lib/apiv2.js:330:77)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+[error] 
+[error] Error: Failed to get Firebase project luxaarlearning. Please make sure the project exists and your account has permission to access it.

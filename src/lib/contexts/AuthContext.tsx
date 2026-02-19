@@ -4,7 +4,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User as FirebaseUser, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase/client";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import type { Profile } from "@/types";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -43,7 +43,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                 const userSnap = await getDoc(userRef);
 
                 if (userSnap.exists()) {
-                    setProfile(userSnap.data() as Profile);
+                    const data = userSnap.data() as Profile;
+
+                    // Check if user should be admin but isn't
+                    const ADMIN_EMAILS = ["abubackerraiyan@gmail.com", "dhl.abu@gmail.com"];
+                    if (currentUser.email && ADMIN_EMAILS.includes(currentUser.email) && (data.role !== 'admin' || data.status !== 'approved')) {
+                        await updateDoc(userRef, {
+                            role: 'admin',
+                            status: 'approved'
+                        });
+                        data.role = 'admin';
+                        data.status = 'approved';
+                        toast.success("Profile upgraded to Admin");
+                    }
+
+                    setProfile(data);
                 } else {
                     // Create new profile
                     const ADMIN_EMAILS = ["abubackerraiyan@gmail.com", "dhl.abu@gmail.com"];
