@@ -117,18 +117,30 @@ export default function AppShell({ children, profile }: AppShellProps) {
                 {onClose && (
                     <button
                         onClick={onClose}
+                        title="Close Sidebar"
                         style={{
-                            background: "transparent",
-                            border: "none",
-                            color: "rgba(255,255,255,0.5)",
+                            background: "rgba(255,255,255,0.1)",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            borderRadius: 8,
+                            color: "rgba(255,255,255,0.8)",
                             cursor: "pointer",
-                            padding: 4,
+                            width: 32,
+                            height: 32,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
+                            transition: "all 0.2s",
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.background = "rgba(255,255,255,0.2)";
+                            e.currentTarget.style.color = "#fff";
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.background = "rgba(255,255,255,0.1)";
+                            e.currentTarget.style.color = "rgba(255,255,255,0.8)";
                         }}
                     >
-                        <X size={20} />
+                        <X size={18} />
                     </button>
                 )}
             </div>
