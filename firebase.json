@@ -6,7 +6,21 @@
             "**/.*",
             "**/node_modules/**"
         ],
-        "cleanUrls": true
+        "cleanUrls": true,
+        "rewrites": [
+            {
+                "source": "/dashboard/admin/courses/*/edit",
+                "destination": "/dashboard/admin/courses/default/edit.html"
+            },
+            {
+                "source": "/dashboard/courses/*/learn",
+                "destination": "/dashboard/courses/default/learn.html"
+            },
+            {
+                "source": "/dashboard/courses/*",
+                "destination": "/dashboard/courses/default.html"
+            }
+        ]
     },
     "firestore": {
         "indexes": "firestore.indexes.json"
