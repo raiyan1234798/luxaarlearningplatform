@@ -9,28 +9,28 @@
         "cleanUrls": true,
         "rewrites": [
             {
-                "source": "/dashboard/admin/courses/*/edit",
+                "source": "/dashboard/admin/courses/:courseId/edit",
                 "destination": "/dashboard/admin/courses/default/edit.html"
             },
             {
-                "source": "/dashboard/admin/courses/*/edit.txt",
-                "destination": "/dashboard/admin/courses/default/edit.txt"
+                "source": "/dashboard/admin/courses/:courseId/edit/:file",
+                "destination": "/dashboard/admin/courses/default/edit/:file"
             },
             {
-                "source": "/dashboard/courses/*/learn",
+                "source": "/dashboard/courses/:courseId/learn",
                 "destination": "/dashboard/courses/default/learn.html"
             },
             {
-                "source": "/dashboard/courses/*/learn.txt",
-                "destination": "/dashboard/courses/default/learn.txt"
+                "source": "/dashboard/courses/:courseId/learn/:file",
+                "destination": "/dashboard/courses/default/learn/:file"
             },
             {
-                "source": "/dashboard/courses/*",
+                "source": "/dashboard/courses/:courseId",
                 "destination": "/dashboard/courses/default.html"
             },
             {
-                "source": "/dashboard/courses/*.txt",
-                "destination": "/dashboard/courses/default.txt"
+                "source": "/dashboard/courses/:courseId/:file",
+                "destination": "/dashboard/courses/default/:file"
             }
         ]
     },
