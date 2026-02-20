@@ -95,7 +95,8 @@ export function isEmbeddableVideo(type: string): boolean {
     return ["youtube", "google_drive", "vimeo", "loom"].includes(type);
 }
 
-export function getDifficultyColor(difficulty: string): string {
+export function getDifficultyColor(difficulty?: string | null): string {
+    if (!difficulty) return "badge-beginner";
     switch (difficulty.toLowerCase()) {
         case "beginner":
             return "badge-beginner";
