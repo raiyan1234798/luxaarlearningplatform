@@ -118,7 +118,7 @@ export default function AdminUsersClient({ users: initialUsers }: AdminUsersClie
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: i * 0.07 }}
                         className="card"
-                        style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}
+                        style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, flex: "1 1 calc(33% - 14px)", minWidth: 140 }}
                     >
                         <div
                             style={{
@@ -161,7 +161,7 @@ export default function AdminUsersClient({ users: initialUsers }: AdminUsersClie
                         style={{ paddingLeft: 36 }}
                     />
                 </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                     <Filter size={13} color="var(--text-muted)" />
                     {(["all", "pending", "approved", "rejected"] as FilterType[]).map((f) => (
                         <button

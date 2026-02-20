@@ -250,7 +250,9 @@ export default function AppShell({ children, profile }: AppShellProps) {
                         const active =
                             item.href === "/dashboard"
                                 ? pathname === "/dashboard"
-                                : pathname.startsWith(item.href);
+                                : item.href === "/dashboard/admin/courses"
+                                    ? pathname === "/dashboard/admin/courses" || pathname.startsWith("/dashboard/admin/courses/edit")
+                                    : pathname.startsWith(item.href);
                         return (
                             <Link
                                 key={item.href}
@@ -447,7 +449,7 @@ export default function AppShell({ children, profile }: AppShellProps) {
     );
 
     return (
-        <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)" }}>
+        <div style={{ display: "flex", minHeight: "100dvh", background: "var(--bg-primary)" }}>
             {/* Desktop sidebar */}
             <div
                 className="sidebar"
@@ -828,7 +830,7 @@ export default function AppShell({ children, profile }: AppShellProps) {
                 </header>
 
                 {/* Page content */}
-                <main style={{ flex: 1, overflow: "auto", padding: "28px 20px" }}>
+                <main style={{ flex: 1, overflow: "auto", padding: "28px 20px 80px 20px" }}>
                     <div style={{ maxWidth: 1200, margin: "0 auto", width: "100%" }}>
                         {children}
                     </div>
