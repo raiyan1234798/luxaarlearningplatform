@@ -45,19 +45,21 @@ export default function CourseAccessRequestsClient({
     const [selectedRequest, setSelectedRequest] = useState<CourseAccessRequest | null>(null);
 
     const filteredRequests = requests.filter((r) => {
+        const safeSearch = search.toLowerCase();
         const matchSearch =
-            r.user_email.toLowerCase().includes(search.toLowerCase()) ||
-            r.user_name.toLowerCase().includes(search.toLowerCase()) ||
-            r.course_title.toLowerCase().includes(search.toLowerCase());
+            (r.user_email || "").toLowerCase().includes(safeSearch) ||
+            (r.user_name || "").toLowerCase().includes(safeSearch) ||
+            (r.course_title || "").toLowerCase().includes(safeSearch);
         const matchFilter = filter === "all" || r.status === filter;
         return matchSearch && matchFilter;
     });
 
     const filteredEnrollments = enrollments.filter((e) => {
+        const safeSearch = search.toLowerCase();
         return (
-            e.user_email?.toLowerCase().includes(search.toLowerCase()) ||
-            e.user_name?.toLowerCase().includes(search.toLowerCase()) ||
-            e.course_title?.toLowerCase().includes(search.toLowerCase())
+            (e.user_email || "").toLowerCase().includes(safeSearch) ||
+            (e.user_name || "").toLowerCase().includes(safeSearch) ||
+            (e.course_title || "").toLowerCase().includes(safeSearch)
         );
     });
 

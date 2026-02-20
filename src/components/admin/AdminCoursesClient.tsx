@@ -27,9 +27,10 @@ export default function AdminCoursesClient({ courses: initialCourses }: AdminCou
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState<string | null>(null);
 
-    const filtered = courses.filter((c) =>
-        c.title.toLowerCase().includes(search.toLowerCase())
-    );
+    const filtered = courses.filter((c) => {
+        const safeSearch = search.toLowerCase();
+        return (c.title || "").toLowerCase().includes(safeSearch);
+    });
 
     async function togglePublish(courseId: string, currentStatus: boolean) {
         setLoading(courseId);

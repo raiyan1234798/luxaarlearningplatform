@@ -22,11 +22,13 @@ export default function CoursesPageClient({
 
     const filtered = useMemo(() => {
         return courses.filter((c) => {
-            const matchSearch =
-                c.title.toLowerCase().includes(search.toLowerCase()) ||
-                c.description.toLowerCase().includes(search.toLowerCase()) ||
-                c.instructor_name.toLowerCase().includes(search.toLowerCase()) ||
-                c.tags?.some((t) => t.toLowerCase().includes(search.toLowerCase()));
+            const safeSearch = search.toLowerCase();
+            const titleMatch = (c.title || "").toLowerCase().includes(safeSearch);
+            const descMatch = (c.description || "").toLowerCase().includes(safeSearch);
+            const instMatch = (c.instructor_name || "").toLowerCase().includes(safeSearch);
+            const tagsMatch = c.tags?.some((t) => (t || "").toLowerCase().includes(safeSearch));
+
+            const matchSearch = titleMatch || descMatch || instMatch || tagsMatch;
             const matchDiff =
                 difficulty === "all" || c.difficulty === difficulty;
             return matchSearch && matchDiff;

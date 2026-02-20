@@ -30,8 +30,8 @@ export default function AdminUsersClient({ users: initialUsers }: AdminUsersClie
 
     const filtered = users.filter((u) => {
         const matchSearch =
-            u.email.toLowerCase().includes(search.toLowerCase()) ||
-            (u.full_name ?? "").toLowerCase().includes(search.toLowerCase());
+            (u.email || "").toLowerCase().includes(search.toLowerCase()) ||
+            (u.full_name || "").toLowerCase().includes(search.toLowerCase());
         const matchFilter = filter === "all" || u.status === filter;
         return matchSearch && matchFilter;
     });
