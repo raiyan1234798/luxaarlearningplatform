@@ -1,11 +1,10 @@
-"use client";
-
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { createClient } from "@/lib/supabase/client";
-import { getVideoEmbedUrl, formatDuration } from "@/lib/utils";
+import { db } from "@/lib/firebase/client";
+import { doc, setDoc, updateDoc, collection, query, where, getDocs, getDoc } from "firebase/firestore";
+import { getVideoEmbedUrl, formatDuration, isEmbeddableVideo } from "@/lib/utils";
 import type { Lesson, LessonProgress, Module } from "@/types";
 import {
     ChevronDown,
@@ -45,8 +44,6 @@ export default function LearnPageClient({
     userId,
     userEmail,
 }: LearnPageClientProps) {
-    const supabase = createClient();
-
     // Flatten all lessons
     const allLessons: Lesson[] = course.modules
         .sort((a, b) => a.order_index - b.order_index)
@@ -86,36 +83,63 @@ export default function LearnPageClient({
             const existing = lessonProgress[lessonId];
             if (existing?.completed) return;
 
-            const result = await supabase.from("lesson_progress").upsert({
-                user_id: userId,
-                lesson_id: lessonId,
-                course_id: course.id,
-                completed: true,
-                last_watched_at: new Date().toISOString(),
-            }, { onConflict: "user_id,lesson_id" }).select().single();
+            const lesson = allLessons.find((l) => l.id === lessonId);
+            const duration = lesson?.duration_seconds || 0;
 
-            if (!result.error && result.data) {
+            try {
+                const progressId = `${userId}_${lessonId}`;
+                const progressData: LessonProgress = {
+                    id: progressId,
+                    user_id: userId,
+                    lesson_id: lessonId,
+                    course_id: course.id,
+                    completed: true,
+                    last_watched_at: new Date().toISOString(),
+                    watched_seconds: duration,
+                    total_seconds: duration
+                };
+
+                // Save progress to Firestore
+                await setDoc(doc(db, "lesson_progress", progressId), progressData);
+
                 setLessonProgress((prev) => ({
                     ...prev,
-                    [lessonId]: result.data as LessonProgress,
+                    [lessonId]: progressData,
                 }));
 
-                // Update enrollment progress
+                // Calculate new progress percentage
                 const newCompleted = Object.values({ ...lessonProgress, [lessonId]: { completed: true } }).filter(
                     (p) => (p as { completed: boolean }).completed
                 ).length;
                 const pct = Math.round((newCompleted / allLessons.length) * 100);
-                await supabase
-                    .from("enrollments")
-                    .update({ progress_percentage: pct, ...(pct === 100 ? { completed_at: new Date().toISOString() } : {}) })
-                    .eq("user_id", userId)
-                    .eq("course_id", course.id);
+
+                // Update enrollment
+                const enrollmentsRef = collection(db, "enrollments");
+                const q = query(
+                    enrollmentsRef,
+                    where("user_id", "==", userId),
+                    where("course_id", "==", course.id)
+                );
+                const querySnapshot = await getDocs(q);
+
+                if (!querySnapshot.empty) {
+                    const enrollmentDoc = querySnapshot.docs[0];
+                    await updateDoc(doc(db, "enrollments", enrollmentDoc.id), {
+                        progress_percentage: pct,
+                        ...(pct === 100 ? { completed_at: new Date().toISOString() } : {}),
+                    });
+                }
 
                 toast.success("Lesson marked complete!");
+            } catch (error) {
+                console.error("Error marking lesson complete:", error);
+                toast.error("Failed to update progress");
             }
         },
-        [supabase, userId, course.id, lessonProgress, allLessons.length]
+        [userId, course.id, lessonProgress, allLessons]
     );
+
+
 
     function toggleModule(moduleId: string) {
         setExpandedModules((prev) => {
@@ -356,6 +380,22 @@ export default function LearnPageClient({
                             {currentLesson?.title}
                         </h2>
                     </div>
+                    {currentLesson?.quiz_link && (
+                        <a
+                            href={currentLesson.quiz_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ textDecoration: "none" }}
+                        >
+                            <button
+                                className="btn-secondary"
+                                style={{ fontSize: 12, padding: "7px 14px", flexShrink: 0, display: "flex", alignItems: "center", gap: 6, marginRight: 8 }}
+                            >
+                                <FileText size={14} />
+                                Take Quiz
+                            </button>
+                        </a>
+                    )}
                     {currentLesson && !lessonProgress[currentLesson.id]?.completed && (
                         <button
                             className="btn-primary"
@@ -391,14 +431,34 @@ export default function LearnPageClient({
                         <div
                             style={{ position: "relative", marginBottom: 20 }}
                         >
-                            <div className="video-container">
-                                <iframe
-                                    src={getVideoEmbedUrl(currentLesson.video_url, currentLesson.video_type)}
-                                    allow="autoplay; fullscreen; picture-in-picture"
-                                    allowFullScreen
-                                    title={currentLesson.title}
-                                />
-                            </div>
+                            {isEmbeddableVideo(currentLesson.video_type) ? (
+                                <div className="video-container">
+                                    <iframe
+                                        src={getVideoEmbedUrl(currentLesson.video_url, currentLesson.video_type)}
+                                        allow="autoplay; fullscreen; picture-in-picture"
+                                        allowFullScreen
+                                        title={currentLesson.title}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="video-container">
+                                    <video
+                                        src={getVideoEmbedUrl(currentLesson.video_url, currentLesson.video_type)}
+                                        controls
+                                        controlsList="nodownload"
+                                        playsInline
+                                        onEnded={() => markComplete(currentLesson.id)}
+                                        style={{
+                                            width: "100%",
+                                            aspectRatio: "16/9",
+                                            borderRadius: 12,
+                                            background: "#000",
+                                        }}
+                                    >
+                                        Your browser does not support the video tag.
+                                    </video>
+                                </div>
+                            )}
                             {/* Watermark */}
                             <div className="video-watermark" style={{ position: "absolute" }}>
                                 {userEmail}

@@ -58,13 +58,41 @@ export function getVideoEmbedUrl(url: string, type: string): string {
         }
     }
 
-    if (type === "github") {
-        // If raw, leave as is. If blob, change to raw.
-        // But for video tag src, we just need the direct link.
-        return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/");
+    if (type === "vimeo") {
+        if (url.includes("player.vimeo.com")) return url;
+
+        const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+        if (vimeoMatch) {
+            return `https://player.vimeo.com/video/${vimeoMatch[1]}?title=0&byline=0&portrait=0`;
+        }
     }
 
+    if (type === "loom") {
+        if (url.includes("/embed/")) return url;
+
+        // Convert share URL to embed: https://www.loom.com/share/xxx -> https://www.loom.com/embed/xxx
+        return url.replace("/share/", "/embed/");
+    }
+
+    if (type === "github") {
+        // Convert blob URLs to raw URLs for direct playback
+        if (url.includes("github.com") && url.includes("/blob/")) {
+            return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/");
+        }
+        // Already a raw URL or raw.githubusercontent.com URL
+        return url;
+    }
+
+    // Direct URL — return as-is
     return url;
+}
+
+/**
+ * Returns true if the video type should be rendered in an <iframe>.
+ * Returns false if it should use a <video> tag instead.
+ */
+export function isEmbeddableVideo(type: string): boolean {
+    return ["youtube", "google_drive", "vimeo", "loom"].includes(type);
 }
 
 export function getDifficultyColor(difficulty: string): string {

@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import AppShell from "@/components/layout/AppShell";
+import LuxaarLoader from "@/components/ui/LuxaarLoader";
+import SupportWidget from "@/components/common/SupportWidget";
 
 export default function DashboardLayout({
     children,
@@ -17,7 +19,6 @@ export default function DashboardLayout({
         if (!loading && !user) {
             router.push("/login");
         } else if (!loading && profile) {
-            // Admins should never be sent to pending/rejected, even if status is stale
             if (profile.role === "admin") {
                 // do nothing, let them pass
             } else if (profile.status === "pending") {
@@ -30,20 +31,19 @@ export default function DashboardLayout({
 
     if (loading) {
         return (
-            <div style={{
-                height: "100vh",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "var(--bg-primary)",
-                color: "var(--text-primary)"
-            }}>
-                Loading...
-            </div>
+            <>
+                <div className="sidebar" style={{ display: "none" }} />
+                <LuxaarLoader fullScreen text="Preparing your dashboard..." />
+            </>
         );
     }
 
     if (!user || !profile) return null;
 
-    return <AppShell profile={profile}>{children}</AppShell>;
+    return (
+        <AppShell profile={profile}>
+            {children}
+            <SupportWidget />
+        </AppShell>
+    );
 }

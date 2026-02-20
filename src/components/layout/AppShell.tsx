@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -8,7 +8,9 @@ import toast from "react-hot-toast";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { getInitials } from "@/lib/utils";
-import type { Profile } from "@/types";
+import type { Profile, Notification as NotificationType } from "@/types";
+import { collection, getDocs, query, where, orderBy, doc, updateDoc, writeBatch } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 import {
     BookOpen,
     LayoutDashboard,
@@ -24,6 +26,10 @@ import {
     ChevronRight,
     Bell,
     GraduationCap,
+    ClipboardList,
+    CheckCircle,
+    Sparkles,
+    MessageSquare,
 } from "lucide-react";
 
 interface AppShellProps {
@@ -42,18 +48,88 @@ const adminNav = [
     { href: "/dashboard/admin/courses", icon: BookOpen, label: "Manage Courses" },
     { href: "/dashboard/admin/courses/new", icon: PlusCircle, label: "New Course" },
     { href: "/dashboard/admin/users", icon: Users, label: "Users" },
+    { href: "/dashboard/admin/enrollments", icon: ClipboardList, label: "Access Requests" },
     { href: "/dashboard/admin/analytics", icon: BarChart3, label: "Analytics" },
+    { href: "/dashboard/admin/support", icon: MessageSquare, label: "Support Messages" },
 ];
 
 export default function AppShell({ children, profile }: AppShellProps) {
     const pathname = usePathname();
     const router = useRouter();
-    const { signOut } = useAuth();
+    const { signOut, user } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [desktopSidebarOpen, setDesktopSidebarOpen] = useState(true);
+    const [notifications, setNotifications] = useState<NotificationType[]>([]);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const notifRef = useRef<HTMLDivElement>(null);
 
     const navItems = profile.role === "admin" ? adminNav : studentNav;
+    const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+    // Fetch notifications
+    useEffect(() => {
+        async function fetchNotifications() {
+            if (!user) return;
+            try {
+                const notifRef = collection(db, "notifications");
+                const q = query(
+                    notifRef,
+                    where("user_id", "==", user.uid),
+                    orderBy("created_at", "desc")
+                );
+                const snap = await getDocs(q);
+                const notifs: NotificationType[] = [];
+                snap.forEach((doc) => {
+                    notifs.push({ id: doc.id, ...doc.data() } as NotificationType);
+                });
+                setNotifications(notifs);
+            } catch (e) {
+                // Collection may not exist yet
+            }
+        }
+
+        fetchNotifications();
+        // Poll every 30 seconds
+        const interval = setInterval(fetchNotifications, 30000);
+        return () => clearInterval(interval);
+    }, [user]);
+
+    // Close notification dropdown when clicking outside
+    useEffect(() => {
+        function handleClickOutside(e: MouseEvent) {
+            if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+                setShowNotifications(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    async function markAsRead(notifId: string) {
+        try {
+            await updateDoc(doc(db, "notifications", notifId), { is_read: true });
+            setNotifications((prev) =>
+                prev.map((n) => (n.id === notifId ? { ...n, is_read: true } : n))
+            );
+        } catch (e) {
+            console.error("Error marking notification as read:", e);
+        }
+    }
+
+    async function markAllAsRead() {
+        try {
+            const batch = writeBatch(db);
+            notifications.filter((n) => !n.is_read).forEach((n) => {
+                batch.update(doc(db, "notifications", n.id), { is_read: true });
+            });
+            await batch.commit();
+            setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+            toast.success("All notifications marked as read");
+        } catch (e) {
+            console.error("Error marking all as read:", e);
+        }
+    }
 
     async function handleSignOut() {
         await signOut();
@@ -441,6 +517,7 @@ export default function AppShell({ children, profile }: AppShellProps) {
                 >
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                         <button
+                            title="Toggle menu"
                             onClick={() => {
                                 if (window.innerWidth < 768) {
                                     setSidebarOpen(true);
@@ -508,19 +585,229 @@ export default function AppShell({ children, profile }: AppShellProps) {
                         >
                             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
                         </button>
-                        <button
-                            style={{
-                                background: "var(--bg-secondary)",
-                                border: "1px solid var(--border)",
-                                borderRadius: 8,
-                                padding: "7px",
-                                cursor: "pointer",
-                                color: "var(--text-secondary)",
-                                display: "flex",
-                            }}
-                        >
-                            <Bell size={16} />
-                        </button>
+                        <div ref={notifRef} style={{ position: "relative" }}>
+                            <button
+                                onClick={() => setShowNotifications(!showNotifications)}
+                                style={{
+                                    background: showNotifications ? "rgba(201,168,76,0.1)" : "var(--bg-secondary)",
+                                    border: `1px solid ${showNotifications ? "rgba(201,168,76,0.3)" : "var(--border)"}`,
+                                    borderRadius: 8,
+                                    padding: "7px",
+                                    cursor: "pointer",
+                                    color: showNotifications ? "#c9a84c" : "var(--text-secondary)",
+                                    display: "flex",
+                                    position: "relative",
+                                }}
+                            >
+                                <Bell size={16} />
+                                {unreadCount > 0 && (
+                                    <span
+                                        style={{
+                                            position: "absolute",
+                                            top: -4,
+                                            right: -4,
+                                            width: 18,
+                                            height: 18,
+                                            borderRadius: "50%",
+                                            background: "#ef4444",
+                                            color: "#fff",
+                                            fontSize: 10,
+                                            fontWeight: 700,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            animation: "pulse-gold 2s infinite",
+                                        }}
+                                    >
+                                        {unreadCount > 9 ? "9+" : unreadCount}
+                                    </span>
+                                )}
+                            </button>
+
+                            {/* Notification dropdown */}
+                            <AnimatePresence>
+                                {showNotifications && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                                        transition={{ duration: 0.2 }}
+                                        style={{
+                                            position: "absolute",
+                                            top: "calc(100% + 8px)",
+                                            right: 0,
+                                            width: 360,
+                                            maxHeight: 440,
+                                            background: "var(--bg-card)",
+                                            border: "1px solid var(--border)",
+                                            borderRadius: 14,
+                                            boxShadow: "0 12px 40px rgba(0,0,0,0.15)",
+                                            overflow: "hidden",
+                                            zIndex: 1000,
+                                        }}
+                                    >
+                                        {/* Header */}
+                                        <div
+                                            style={{
+                                                padding: "14px 16px",
+                                                borderBottom: "1px solid var(--border)",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                            }}
+                                        >
+                                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                                <Sparkles size={14} color="#c9a84c" />
+                                                <span style={{ fontWeight: 600, fontSize: 14, color: "var(--text-primary)" }}>
+                                                    Notifications
+                                                </span>
+                                                {unreadCount > 0 && (
+                                                    <span
+                                                        style={{
+                                                            background: "rgba(239,68,68,0.1)",
+                                                            color: "#ef4444",
+                                                            fontSize: 11,
+                                                            fontWeight: 600,
+                                                            padding: "1px 8px",
+                                                            borderRadius: 999,
+                                                        }}
+                                                    >
+                                                        {unreadCount} new
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {unreadCount > 0 && (
+                                                <button
+                                                    onClick={markAllAsRead}
+                                                    style={{
+                                                        background: "none",
+                                                        border: "none",
+                                                        color: "#c9a84c",
+                                                        fontSize: 12,
+                                                        fontWeight: 500,
+                                                        cursor: "pointer",
+                                                    }}
+                                                >
+                                                    Mark all read
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Notification list */}
+                                        <div style={{ maxHeight: 380, overflowY: "auto" }}>
+                                            {notifications.length === 0 ? (
+                                                <div
+                                                    style={{
+                                                        padding: 40,
+                                                        textAlign: "center",
+                                                        color: "var(--text-muted)",
+                                                    }}
+                                                >
+                                                    <Bell size={28} style={{ marginBottom: 8, opacity: 0.4 }} />
+                                                    <p style={{ fontSize: 13 }}>No notifications yet</p>
+                                                </div>
+                                            ) : (
+                                                notifications.slice(0, 20).map((notif) => (
+                                                    <div
+                                                        key={notif.id}
+                                                        onClick={() => {
+                                                            if (!notif.is_read) markAsRead(notif.id);
+                                                            if (notif.course_id) {
+                                                                router.push(`/dashboard/courses/${notif.course_id}/learn`);
+                                                                setShowNotifications(false);
+                                                            }
+                                                        }}
+                                                        style={{
+                                                            padding: "12px 16px",
+                                                            borderBottom: "1px solid var(--border)",
+                                                            cursor: notif.course_id ? "pointer" : "default",
+                                                            background: notif.is_read
+                                                                ? "transparent"
+                                                                : "rgba(201,168,76,0.04)",
+                                                            transition: "background 0.2s ease",
+                                                        }}
+                                                        className="interactive-row"
+                                                    >
+                                                        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+                                                            <div
+                                                                style={{
+                                                                    width: 32,
+                                                                    height: 32,
+                                                                    borderRadius: 8,
+                                                                    background: notif.is_read
+                                                                        ? "var(--bg-secondary)"
+                                                                        : "rgba(201,168,76,0.12)",
+                                                                    display: "flex",
+                                                                    alignItems: "center",
+                                                                    justifyContent: "center",
+                                                                    flexShrink: 0,
+                                                                    marginTop: 2,
+                                                                }}
+                                                            >
+                                                                {notif.type === "enrollment_approved" ? (
+                                                                    <CheckCircle size={14} color={notif.is_read ? "var(--text-muted)" : "#4ade80"} />
+                                                                ) : notif.type === "new_lesson" ? (
+                                                                    <PlayCircle size={14} color={notif.is_read ? "var(--text-muted)" : "#c9a84c"} />
+                                                                ) : (
+                                                                    <Sparkles size={14} color={notif.is_read ? "var(--text-muted)" : "#c9a84c"} />
+                                                                )}
+                                                            </div>
+                                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                                <div
+                                                                    style={{
+                                                                        fontSize: 13,
+                                                                        fontWeight: notif.is_read ? 400 : 600,
+                                                                        color: "var(--text-primary)",
+                                                                        marginBottom: 2,
+                                                                    }}
+                                                                >
+                                                                    {notif.title}
+                                                                </div>
+                                                                <div
+                                                                    style={{
+                                                                        fontSize: 12,
+                                                                        color: "var(--text-muted)",
+                                                                        lineHeight: 1.4,
+                                                                    }}
+                                                                >
+                                                                    {notif.message}
+                                                                </div>
+                                                                <div
+                                                                    style={{
+                                                                        fontSize: 11,
+                                                                        color: "var(--text-muted)",
+                                                                        marginTop: 4,
+                                                                    }}
+                                                                >
+                                                                    {new Date(notif.created_at).toLocaleDateString("en-US", {
+                                                                        month: "short",
+                                                                        day: "numeric",
+                                                                        hour: "2-digit",
+                                                                        minute: "2-digit",
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                            {!notif.is_read && (
+                                                                <div
+                                                                    style={{
+                                                                        width: 8,
+                                                                        height: 8,
+                                                                        borderRadius: "50%",
+                                                                        background: "#c9a84c",
+                                                                        flexShrink: 0,
+                                                                        marginTop: 6,
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
                         <div
                             style={{
                                 width: 32,

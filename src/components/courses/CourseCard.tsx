@@ -50,6 +50,7 @@ export function CourseCard({ course, progress, isEnrolled }: CourseCardProps) {
                         <img
                             src={course.thumbnail_url}
                             alt={course.title}
+                            className="course-thumbnail"
                             style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         />
                     ) : (
@@ -206,6 +207,19 @@ export function CourseCard({ course, progress, isEnrolled }: CourseCardProps) {
             <style>{`
         .card:hover .play-overlay {
           opacity: 1 !important;
+        }
+        .card:hover .course-thumbnail {
+          transform: scale(1.05);
+        }
+        .course-thumbnail {
+          transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .play-overlay > div {
+          transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+          transform: scale(0.8);
+        }
+        .card:hover .play-overlay > div {
+          transform: scale(1);
         }
       `}</style>
         </Link>

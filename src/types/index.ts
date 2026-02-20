@@ -54,13 +54,14 @@ export interface Lesson {
     title: string;
     description: string | null;
     video_url: string;
-    video_type: "google_drive" | "github" | "youtube" | "direct";
+    video_type: "google_drive" | "github" | "youtube" | "vimeo" | "loom" | "direct";
     notes: string | null;
     resources: Resource[];
     duration_seconds: number | null;
     order_index: number;
     created_at: string;
     progress?: LessonProgress;
+    quiz_link?: string | null;
 }
 
 export interface Resource {
@@ -72,11 +73,29 @@ export interface Resource {
 export interface Enrollment {
     id: string;
     user_id: string;
+    user_email?: string;
+    user_name?: string;
     course_id: string;
+    course_title?: string;
     enrolled_at: string;
     completed_at: string | null;
     progress_percentage: number;
     certificate_issued: boolean;
+}
+
+export type AccessRequestStatus = "pending" | "approved" | "rejected";
+
+export interface CourseAccessRequest {
+    id: string;
+    user_id: string;
+    user_name: string;
+    user_email: string;
+    course_id: string;
+    course_title: string;
+    status: AccessRequestStatus;
+    message: string | null;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface LessonProgress {
@@ -88,6 +107,18 @@ export interface LessonProgress {
     total_seconds: number;
     completed: boolean;
     last_watched_at: string;
+}
+
+export interface Notification {
+    id: string;
+    user_id: string;
+    type: "enrollment_approved" | "new_lesson" | "course_update" | "course_completed" | "announcement";
+    title: string;
+    message: string;
+    course_id?: string;
+    course_title?: string;
+    is_read: boolean;
+    created_at: string;
 }
 
 export interface Announcement {
@@ -108,3 +139,4 @@ export interface DashboardStats {
     totalEnrollments: number;
     totalLessons: number;
 }
+

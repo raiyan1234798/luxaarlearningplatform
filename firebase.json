@@ -6,11 +6,9 @@
             "**/.*",
             "**/node_modules/**"
         ],
-        "rewrites": [
-            {
-                "source": "**",
-                "destination": "/index.html"
-            }
-        ]
+        "cleanUrls": true
+    },
+    "firestore": {
+        "indexes": "firestore.indexes.json"
     }
 }

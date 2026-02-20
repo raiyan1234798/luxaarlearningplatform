@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { createClient } from "@/lib/supabase/client";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 import type { Profile } from "@/types";
 import { getInitials, formatDate } from "@/lib/utils";
 import {
@@ -19,13 +20,12 @@ interface AdminUsersClientProps {
     users: Profile[];
 }
 
-type Filter = "all" | "pending" | "approved" | "rejected";
+type FilterType = "all" | "pending" | "approved" | "rejected";
 
 export default function AdminUsersClient({ users: initialUsers }: AdminUsersClientProps) {
-    const supabase = createClient();
     const [users, setUsers] = useState<Profile[]>(initialUsers);
     const [search, setSearch] = useState("");
-    const [filter, setFilter] = useState<Filter>("all");
+    const [filter, setFilter] = useState<FilterType>("all");
     const [updating, setUpdating] = useState<string | null>(null);
 
     const filtered = users.filter((u) => {
@@ -44,34 +44,38 @@ export default function AdminUsersClient({ users: initialUsers }: AdminUsersClie
         status: "approved" | "rejected"
     ) {
         setUpdating(userId);
-        const { error } = await supabase
-            .from("profiles")
-            .update({ status })
-            .eq("id", userId);
-        if (error) {
-            toast.error("Failed to update user");
-        } else {
+        try {
+            const userRef = doc(db, "users", userId);
+            await updateDoc(userRef, {
+                status,
+                updated_at: new Date().toISOString()
+            });
             toast.success(`User ${status}`);
             setUsers((prev) =>
                 prev.map((u) => (u.id === userId ? { ...u, status } : u))
             );
+        } catch (error) {
+            console.error("Error updating user status:", error);
+            toast.error("Failed to update user");
         }
         setUpdating(null);
     }
 
     async function updateRole(userId: string, role: "admin" | "student") {
         setUpdating(userId);
-        const { error } = await supabase
-            .from("profiles")
-            .update({ role })
-            .eq("id", userId);
-        if (error) {
-            toast.error("Failed to update role");
-        } else {
+        try {
+            const userRef = doc(db, "users", userId);
+            await updateDoc(userRef, {
+                role,
+                updated_at: new Date().toISOString()
+            });
             toast.success(`Role updated to ${role}`);
             setUsers((prev) =>
                 prev.map((u) => (u.id === userId ? { ...u, role } : u))
             );
+        } catch (error) {
+            console.error("Error updating user role:", error);
+            toast.error("Failed to update role");
         }
         setUpdating(null);
     }
@@ -159,7 +163,7 @@ export default function AdminUsersClient({ users: initialUsers }: AdminUsersClie
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                     <Filter size={13} color="var(--text-muted)" />
-                    {(["all", "pending", "approved", "rejected"] as Filter[]).map((f) => (
+                    {(["all", "pending", "approved", "rejected"] as FilterType[]).map((f) => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
@@ -192,6 +196,7 @@ export default function AdminUsersClient({ users: initialUsers }: AdminUsersClie
             >
                 {filtered.length === 0 ? (
                     <div style={{ padding: 40, textAlign: "center" }}>
+                        <Users size={40} color="var(--text-muted)" style={{ marginBottom: 12, opacity: 0.4 }} />
                         <p style={{ color: "var(--text-muted)", fontSize: 14 }}>No users found</p>
                     </div>
                 ) : (
@@ -287,7 +292,7 @@ export default function AdminUsersClient({ users: initialUsers }: AdminUsersClie
                                                     width: "fit-content",
                                                 }}
                                             >
-                                                <span className="status-dot" style={{ width: 6, height: 6, background: "currentColor" }} />
+                                                <span className="status-dot" style={{ width: 6, height: 6, background: "currentColor", borderRadius: "50%", display: "inline-block" }} />
                                                 {u.status}
                                             </span>
                                         </td>

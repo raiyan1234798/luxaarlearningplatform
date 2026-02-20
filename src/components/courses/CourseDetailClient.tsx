@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { createClient } from "@/lib/supabase/client";
+import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
+import { useAuth } from "@/lib/contexts/AuthContext";
 import type { Course, Enrollment } from "@/types";
 import { getDifficultyColor, formatDate } from "@/lib/utils";
 import {
@@ -18,6 +20,8 @@ import {
     Lock,
     Edit,
     ArrowRight,
+    Send,
+    Loader2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -35,8 +39,11 @@ export default function CourseDetailClient({
     isAdmin,
 }: CourseDetailClientProps) {
     const router = useRouter();
-    const supabase = createClient();
+    const { profile } = useAuth();
     const [enrolling, setEnrolling] = useState(false);
+    const [requestMessage, setRequestMessage] = useState("");
+    const [existingRequestStatus, setExistingRequestStatus] = useState<string | null>(null);
+    const [checkingRequest, setCheckingRequest] = useState(true);
     const [expandedModules, setExpandedModules] = useState<Set<string>>(
         new Set([course.modules?.[0]?.id])
     );
@@ -48,18 +55,52 @@ export default function CourseDetailClient({
 
     const diffStyle = getDifficultyColor(course.difficulty);
 
-    async function handleEnroll() {
+    // Check if a request already exists
+    useEffect(() => {
+        async function checkExistingRequest() {
+            if (isAdmin || enrollment) {
+                setCheckingRequest(false);
+                return;
+            }
+            try {
+                const q = query(
+                    collection(db, "course_access_requests"),
+                    where("user_id", "==", userId),
+                    where("course_id", "==", course.id)
+                );
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    const requestData = snap.docs[0].data();
+                    setExistingRequestStatus(requestData.status);
+                }
+            } catch (e) {
+                // Ignore – collection might not exist yet
+            } finally {
+                setCheckingRequest(false);
+            }
+        }
+        checkExistingRequest();
+    }, [userId, course.id, isAdmin, enrollment]);
+
+    async function handleRequestAccess() {
         setEnrolling(true);
-        const { error } = await supabase.from("enrollments").insert({
-            user_id: userId,
-            course_id: course.id,
-            progress_percentage: 0,
-        });
-        if (error) {
-            toast.error("Failed to enroll");
-        } else {
-            toast.success("Successfully enrolled!");
-            router.refresh();
+        try {
+            await addDoc(collection(db, "course_access_requests"), {
+                user_id: userId,
+                user_name: profile?.full_name || "Unknown",
+                user_email: profile?.email || "",
+                course_id: course.id,
+                course_title: course.title,
+                status: "pending",
+                message: requestMessage.trim() || null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+            });
+            toast.success("Access request submitted! The admin will review it.");
+            setExistingRequestStatus("pending");
+        } catch (error) {
+            console.error("Error submitting request:", error);
+            toast.error("Failed to submit request");
         }
         setEnrolling(false);
     }
@@ -175,14 +216,7 @@ export default function CourseDetailClient({
                 </div>
             </motion.div>
 
-            <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr auto",
-                    gap: 24,
-                    alignItems: "start",
-                }}
-            >
+            <div className="course-detail-grid">
                 {/* Modules */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -316,14 +350,12 @@ export default function CourseDetailClient({
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.2 }}
-                    style={{ minWidth: 260, maxWidth: 300, width: "100%" }}
+                    className="course-detail-sidebar"
                 >
                     <div
                         className="card"
                         style={{
                             padding: "24px",
-                            position: "sticky",
-                            top: 90,
                         }}
                     >
                         {enrollment ? (
@@ -392,15 +424,113 @@ export default function CourseDetailClient({
                                         </div>
                                     ))}
                                 </div>
-                                <button
-                                    className="btn-primary"
-                                    onClick={handleEnroll}
-                                    disabled={enrolling}
-                                    style={{ width: "100%", justifyContent: "center" }}
-                                >
-                                    {enrolling ? "Enrolling..." : "Enroll Now"}
-                                    {!enrolling && <ArrowRight size={16} />}
-                                </button>
+
+                                {checkingRequest ? (
+                                    <div style={{ textAlign: "center", padding: "12px 0" }}>
+                                        <Loader2 size={20} color="#c9a84c" style={{ animation: "spin 1s linear infinite" }} />
+                                    </div>
+                                ) : existingRequestStatus === "pending" ? (
+                                    <div style={{ textAlign: "center" }}>
+                                        <div
+                                            style={{
+                                                padding: "12px 16px",
+                                                borderRadius: 10,
+                                                background: "rgba(201,168,76,0.08)",
+                                                border: "1px solid rgba(201,168,76,0.2)",
+                                                marginBottom: 8,
+                                            }}
+                                        >
+                                            <Clock size={18} color="#c9a84c" style={{ marginBottom: 6 }} />
+                                            <p style={{ fontSize: 13, fontWeight: 600, color: "#c9a84c", marginBottom: 2 }}>
+                                                Request Pending
+                                            </p>
+                                            <p style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                                                Your access request is being reviewed by the admin.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : existingRequestStatus === "approved" ? (
+                                    <div style={{ textAlign: "center" }}>
+                                        <div
+                                            style={{
+                                                padding: "12px 16px",
+                                                borderRadius: 10,
+                                                background: "rgba(74,222,128,0.08)",
+                                                border: "1px solid rgba(74,222,128,0.2)",
+                                                marginBottom: 8,
+                                            }}
+                                        >
+                                            <CheckCircle size={18} color="#4ade80" style={{ marginBottom: 6 }} />
+                                            <p style={{ fontSize: 13, fontWeight: 600, color: "#4ade80", marginBottom: 2 }}>
+                                                Access Approved!
+                                            </p>
+                                            <p style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                                                You now have access to this course.
+                                            </p>
+                                        </div>
+                                        <Link href={`/dashboard/courses/${course.id}/learn`}>
+                                            <button
+                                                className="btn-primary"
+                                                style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
+                                            >
+                                                <Play size={16} />
+                                                Start Learning
+                                            </button>
+                                        </Link>
+                                    </div>
+                                ) : existingRequestStatus === "rejected" ? (
+                                    <div style={{ textAlign: "center" }}>
+                                        <div
+                                            style={{
+                                                padding: "12px 16px",
+                                                borderRadius: 10,
+                                                background: "rgba(248,113,113,0.08)",
+                                                border: "1px solid rgba(248,113,113,0.2)",
+                                            }}
+                                        >
+                                            <p style={{ fontSize: 13, fontWeight: 600, color: "#f87171", marginBottom: 2 }}>
+                                                Request Rejected
+                                            </p>
+                                            <p style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                                                Your access request was not approved. Contact the admin for more details.
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <textarea
+                                            className="input"
+                                            placeholder="Add a message (optional)..."
+                                            value={requestMessage}
+                                            onChange={(e) => setRequestMessage(e.target.value)}
+                                            rows={3}
+                                            style={{
+                                                resize: "vertical",
+                                                marginBottom: 10,
+                                                fontSize: 13,
+                                                minHeight: 60,
+                                            }}
+                                        />
+                                        <button
+                                            className="btn-primary"
+                                            onClick={handleRequestAccess}
+                                            disabled={enrolling}
+                                            style={{ width: "100%", justifyContent: "center" }}
+                                        >
+                                            {enrolling ? (
+                                                <>
+                                                    <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                                                    Submitting...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Send size={16} />
+                                                    Request Access
+                                                </>
+                                            )}
+                                        </button>
+                                    </>
+                                )}
                             </>
                         )}
 

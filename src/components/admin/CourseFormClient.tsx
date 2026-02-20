@@ -4,7 +4,8 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { createClient } from "@/lib/supabase/client";
+import { addDoc, collection, doc, updateDoc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 import {
     Plus,
     Trash2,
@@ -30,10 +31,11 @@ interface LessonForm {
     title: string;
     description: string;
     video_url: string;
-    video_type: "google_drive" | "github" | "youtube" | "direct";
+    video_type: "google_drive" | "github" | "youtube" | "vimeo" | "loom" | "direct";
     notes: string;
     resources: Resource[];
     duration_seconds: string;
+    quiz_link?: string;
     order_index: number;
 }
 
@@ -87,6 +89,7 @@ function emptyLesson(idx: number): LessonForm {
         notes: "",
         resources: [],
         duration_seconds: "",
+        quiz_link: "",
         order_index: idx,
     };
 }
@@ -106,7 +109,6 @@ export default function CourseFormClient({
     initialCourse,
 }: CourseFormClientProps) {
     const router = useRouter();
-    const supabase = createClient();
     const [saving, setSaving] = useState(false);
 
     // Course fields
@@ -140,6 +142,7 @@ export default function CourseFormClient({
                             notes: l.notes ?? "",
                             resources: l.resources ?? [],
                             duration_seconds: l.duration_seconds?.toString() ?? "",
+                            quiz_link: (l as any).quiz_link ?? "",
                             order_index: l.order_index,
                         })),
                 }))
@@ -205,7 +208,8 @@ export default function CourseFormClient({
         setModules((prev) => {
             const next = [...prev];
             const mod = { ...next[modIdx] };
-            mod.lessons = mod.lessons.filter((_, i) => i !== lesIdx);
+            const modLessons = mod.lessons.filter((_, i) => i !== lesIdx);
+            mod.lessons = modLessons;
             next[modIdx] = mod;
             return next;
         });
@@ -259,10 +263,9 @@ export default function CourseFormClient({
 
         let courseId = initialCourse?.id;
 
-        if (mode === "create") {
-            const { data, error } = await supabase
-                .from("courses")
-                .insert({
+        try {
+            if (mode === "create") {
+                const docRef = await addDoc(collection(db, "courses"), {
                     title,
                     description,
                     thumbnail_url: thumbnailUrl || null,
@@ -272,20 +275,12 @@ export default function CourseFormClient({
                     is_published: isPublished,
                     is_featured: isFeatured,
                     created_by: userId,
-                })
-                .select()
-                .single();
-
-            if (error) {
-                toast.error("Failed to create course: " + error.message);
-                setSaving(false);
-                return;
-            }
-            courseId = data.id;
-        } else {
-            const { error } = await supabase
-                .from("courses")
-                .update({
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                });
+                courseId = docRef.id;
+            } else {
+                await setDoc(doc(db, "courses", courseId!), {
                     title,
                     description,
                     thumbnail_url: thumbnailUrl || null,
@@ -294,70 +289,76 @@ export default function CourseFormClient({
                     difficulty,
                     is_published: isPublished,
                     is_featured: isFeatured,
-                })
-                .eq("id", courseId!);
-
-            if (error) {
-                toast.error("Failed to update course");
-                setSaving(false);
-                return;
+                    updated_at: new Date().toISOString(),
+                }, { merge: true });
             }
-        }
 
-        // Save modules and lessons
-        for (const [mi, mod] of modules.entries()) {
-            let moduleId = mod.id;
+            // Save modules and lessons
+            // Note: In a real app, we might want to delete removed modules/lessons here too
+            // For now, we just upsert existing ones or create new ones.
 
-            if (moduleId) {
-                await supabase
-                    .from("modules")
-                    .update({
-                        title: mod.title,
-                        description: mod.description || null,
-                        order_index: mi,
-                    })
-                    .eq("id", moduleId);
-            } else {
-                const { data } = await supabase
-                    .from("modules")
-                    .insert({
+            for (const [mi, mod] of modules.entries()) {
+                let moduleId = mod.id;
+
+                if (moduleId && !moduleId.startsWith("temp-")) {
+                    // Update existing module
+                    await setDoc(doc(db, "modules", moduleId), {
                         course_id: courseId,
                         title: mod.title,
                         description: mod.description || null,
                         order_index: mi,
-                    })
-                    .select()
-                    .single();
-                moduleId = data?.id;
-            }
-
-            if (!moduleId) continue;
-
-            for (const [li, lesson] of mod.lessons.entries()) {
-                const lessonData = {
-                    module_id: moduleId,
-                    course_id: courseId,
-                    title: lesson.title,
-                    description: lesson.description || null,
-                    video_url: lesson.video_url,
-                    video_type: lesson.video_type,
-                    notes: lesson.notes || null,
-                    resources: lesson.resources,
-                    duration_seconds: lesson.duration_seconds ? parseInt(lesson.duration_seconds) : null,
-                    order_index: li,
-                };
-
-                if (lesson.id) {
-                    await supabase.from("lessons").update(lessonData).eq("id", lesson.id);
+                    }, { merge: true });
                 } else {
-                    await supabase.from("lessons").insert(lessonData);
+                    // Create new module
+                    const modRef = await addDoc(collection(db, "modules"), {
+                        course_id: courseId,
+                        title: mod.title,
+                        description: mod.description || null,
+                        order_index: mi,
+                        created_at: new Date().toISOString(),
+                    });
+                    moduleId = modRef.id;
+                }
+
+                if (!moduleId) continue;
+
+                for (const [li, lesson] of mod.lessons.entries()) {
+                    const lessonData = {
+                        module_id: moduleId,
+                        course_id: courseId,
+                        title: lesson.title,
+                        description: lesson.description || null,
+                        video_url: lesson.video_url,
+                        video_type: lesson.video_type,
+                        notes: lesson.notes || null,
+                        quiz_link: lesson.quiz_link || null,
+                        resources: lesson.resources,
+                        duration_seconds: lesson.duration_seconds ? parseInt(lesson.duration_seconds) : null,
+                        order_index: li,
+                        updated_at: new Date().toISOString(),
+                    };
+
+                    if (lesson.id && !lesson.id.startsWith("temp-")) {
+                        // Update existing lesson
+                        await setDoc(doc(db, "lessons", lesson.id), lessonData, { merge: true });
+                    } else {
+                        // Create new lesson
+                        await addDoc(collection(db, "lessons"), {
+                            ...lessonData,
+                            created_at: new Date().toISOString(),
+                        });
+                    }
                 }
             }
-        }
 
-        toast.success(mode === "create" ? "Course created!" : "Course updated!");
-        router.push(`/dashboard/courses/${courseId}`);
-        setSaving(false);
+            toast.success(mode === "create" ? "Course created!" : "Course updated!");
+            router.push(`/dashboard/courses/${courseId}`);
+        } catch (error: any) {
+            console.error("Error saving course:", error);
+            toast.error("Failed to save course: " + error.message);
+        } finally {
+            setSaving(false);
+        }
     }
 
     return (
@@ -627,7 +628,9 @@ export default function CourseFormClient({
                                                                         <option value="google_drive">Google Drive</option>
                                                                         <option value="github">GitHub</option>
                                                                         <option value="youtube">YouTube</option>
-                                                                        <option value="direct">Direct URL</option>
+                                                                        <option value="vimeo">Vimeo</option>
+                                                                        <option value="loom">Loom</option>
+                                                                        <option value="direct">Direct URL (.mp4)</option>
                                                                     </select>
                                                                 </div>
                                                                 <div>
@@ -641,6 +644,17 @@ export default function CourseFormClient({
                                                                     />
                                                                 </div>
                                                                 <div style={{ gridColumn: "1 / -1" }}>
+                                                                    <label className="label">Quiz Link (Optional)</label>
+                                                                    <input
+                                                                        className="input"
+                                                                        type="url"
+                                                                        placeholder="https://docs.google.com/forms/..."
+                                                                        value={lesson.quiz_link || ""}
+                                                                        onChange={(e) => updateLesson(mi, li, "quiz_link", e.target.value)}
+                                                                    />
+                                                                </div>
+
+                                                                <div style={{ gridColumn: "1 / -1" }}>
                                                                     <label className="label">
                                                                         <LinkIcon size={12} style={{ display: "inline", marginRight: 4 }} />
                                                                         Video URL *
@@ -653,9 +667,12 @@ export default function CourseFormClient({
                                                                         onChange={(e) => updateLesson(mi, li, "video_url", e.target.value)}
                                                                     />
                                                                     <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                                                                        {lesson.video_type === "google_drive" && "Share → Copy link from Google Drive"}
-                                                                        {lesson.video_type === "github" && "Use raw GitHub content URL ending in .mp4"}
-                                                                        {lesson.video_type === "youtube" && "Standard YouTube watch URL"}
+                                                                        {lesson.video_type === "google_drive" && "Share → Copy link from Google Drive (set access to 'Anyone with the link')"}
+                                                                        {lesson.video_type === "github" && "Use raw GitHub content URL (e.g. https://github.com/user/repo/blob/main/video.mp4)"}
+                                                                        {lesson.video_type === "youtube" && "Standard YouTube watch URL (e.g. https://youtube.com/watch?v=xxx)"}
+                                                                        {lesson.video_type === "vimeo" && "Vimeo video URL (e.g. https://vimeo.com/123456789)"}
+                                                                        {lesson.video_type === "loom" && "Loom share URL (e.g. https://www.loom.com/share/xxx)"}
+                                                                        {lesson.video_type === "direct" && "Direct link to .mp4 file (any publicly accessible URL)"}
                                                                     </p>
                                                                 </div>
                                                                 <div style={{ gridColumn: "1 / -1" }}>
@@ -783,6 +800,6 @@ export default function CourseFormClient({
                     {saving ? "Saving..." : mode === "create" ? "Create Course" : "Save Changes"}
                 </button>
             </div>
-        </div>
+        </div >
     );
 }
