@@ -4,7 +4,16 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import type { Profile, Course } from "@/types";
 import { CourseCard } from "@/components/courses/CourseCard";
-import { BookOpen, Play, Award, Clock, ArrowRight } from "lucide-react";
+import { BookOpen, Play, Award, Clock, ArrowRight, Star, Shield, Zap, TrendingUp } from "lucide-react";
+
+interface Badge {
+    id: string;
+    name: string;
+    description: string;
+    icon: any;
+    color: string;
+    earned: boolean;
+}
 
 interface StudentDashboardProps {
     profile: Profile;
@@ -24,6 +33,50 @@ export default function StudentDashboard({
     const continueWatching = enrollments
         .filter((e) => !e.completed_at && e.progress_percentage > 0)
         .sort((a, b) => new Date(b.enrolled_at).getTime() - new Date(a.enrolled_at).getTime())[0];
+
+    // Gamification Badges Logic
+    const badges: Badge[] = [
+        {
+            id: "first_enrollment",
+            name: "Beginner",
+            description: "Enrolled in your first course",
+            icon: Shield,
+            color: "#3b82f6",
+            earned: enrollments.length > 0
+        },
+        {
+            id: "active_learner",
+            name: "Active Learner",
+            description: "Started learning a course",
+            icon: Zap,
+            color: "#f59e0b",
+            earned: inProgressCount > 0 || completedCount > 0
+        },
+        {
+            id: "first_completion",
+            name: "Achiever",
+            description: "Completed a course",
+            icon: Award,
+            color: "#10b981",
+            earned: completedCount > 0
+        },
+        {
+            id: "scholar",
+            name: "Scholar",
+            description: "Completed 3 or more courses",
+            icon: Star,
+            color: "#c9a84c",
+            earned: completedCount >= 3
+        },
+        {
+            id: "master",
+            name: "Master",
+            description: "Enrolled in 5 or more courses",
+            icon: TrendingUp,
+            color: "#8b5cf6",
+            earned: enrollments.length >= 5
+        }
+    ];
 
     return (
         <div style={{ maxWidth: 1200 }}>
@@ -94,6 +147,59 @@ export default function StudentDashboard({
                     </motion.div>
                 ))}
             </div>
+
+            {/* My Badges Section */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                style={{ marginBottom: 32 }}
+            >
+                <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
+                    <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>
+                        My Badges
+                    </h2>
+                    <span className="badge" style={{ marginLeft: 12, padding: "2px 8px", fontSize: 11, background: "rgba(201,168,76,0.1)", color: "#c9a84c" }}>
+                        {badges.filter(b => b.earned).length} / {badges.length} Earned
+                    </span>
+                </div>
+                <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }} className="hide-scroll">
+                    {badges.map((badge, i) => (
+                        <div
+                            key={badge.id}
+                            style={{
+                                minWidth: 140,
+                                padding: "16px 12px",
+                                borderRadius: 12,
+                                background: badge.earned ? "var(--bg-secondary)" : "transparent",
+                                border: `1px solid ${badge.earned ? "var(--border)" : "rgba(255,255,255,0.05)"}`,
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                textAlign: "center",
+                                opacity: badge.earned ? 1 : 0.4,
+                                transition: "all 0.2s"
+                            }}
+                        >
+                            <div style={{
+                                width: 48, height: 48, borderRadius: "50%",
+                                background: badge.earned ? `${badge.color}15` : "var(--bg-secondary)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                marginBottom: 10,
+                                boxShadow: badge.earned ? `0 0 16px ${badge.color}30` : "none"
+                            }}>
+                                <badge.icon size={24} color={badge.earned ? badge.color : "var(--text-muted)"} />
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: badge.earned ? "var(--text-primary)" : "var(--text-secondary)", marginBottom: 4 }}>
+                                {badge.name}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.3 }}>
+                                {badge.description}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </motion.div>
 
             {/* Continue watching */}
             {continueWatching && (

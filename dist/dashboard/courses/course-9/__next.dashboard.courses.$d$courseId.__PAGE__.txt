@@ -1,7 +1,0 @@
-1:"$Sreact.fragment"
-2:I[87768,["/_next/static/chunks/e6aa35e2abc6927a.js","/_next/static/chunks/804befdfacbac7f8.js","/_next/static/chunks/e21db0d33f76a704.js","/_next/static/chunks/5265963228028d7f.js","/_next/static/chunks/991355691a5c9db0.js"],"default"]
-4:I[97367,["/_next/static/chunks/ff1a16fafef87110.js","/_next/static/chunks/0bd6498bda341889.js"],"OutletBoundary"]
-5:"$Sreact.suspense"
-0:{"buildId":"9ieQ6ejqgBqw3uKVuWUv4","rsc":["$","$1","c",{"children":[["$","$L2",null,{"params":"$@3"}],[["$","script","script-0",{"src":"/_next/static/chunks/991355691a5c9db0.js","async":true}]],["$","$L4",null,{"children":["$","$5",null,{"name":"Next.MetadataOutlet","children":"$@6"}]}]]}],"loading":null,"isPartial":false}
-3:{"courseId":"course-9"}
-6:null

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { doc, updateDoc, addDoc, collection } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import { formatDate, getInitials } from "@/lib/utils";
 import type { Profile, DashboardStats, Course, CourseAccessRequest } from "@/types";
@@ -20,6 +20,7 @@ import {
     ClipboardList,
     XCircle,
     Inbox,
+    Download,
 } from "lucide-react";
 
 interface AdminDashboardProps {
@@ -94,6 +95,49 @@ export default function AdminDashboard({
             toast.error("Failed to reject request");
         }
         setUpdating(null);
+    }
+
+    async function handleExportCSV() {
+        try {
+            const usersRef = collection(db, "users");
+            const snap = await getDocs(usersRef);
+            const users = snap.docs.map(doc => doc.data());
+
+            if (users.length === 0) {
+                toast("No users to export", { icon: "ℹ️" });
+                return;
+            }
+
+            const headers = ["ID", "Full Name", "Email", "Role", "Status", "Created At"];
+            const csvRows = [headers.join(",")];
+
+            for (const row of users as Profile[]) {
+                const values = [
+                    row.id,
+                    `"${row.full_name || ""}"`,
+                    row.email,
+                    row.role,
+                    row.status,
+                    row.created_at
+                ];
+                csvRows.push(values.join(","));
+            }
+
+            const csvData = csvRows.join("\n");
+            const blob = new Blob([csvData], { type: "text/csv" });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.setAttribute("hidden", "");
+            a.setAttribute("href", url);
+            a.setAttribute("download", `luxaar_users_${new Date().toISOString().split("T")[0]}.csv`);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            toast.success("Exported users to CSV");
+        } catch (error) {
+            console.error("Export error:", error);
+            toast.error("Failed to export data");
+        }
     }
 
     const cards = [
@@ -255,6 +299,10 @@ export default function AdminDashboard({
                             Analytics
                         </button>
                     </Link>
+                    <button onClick={handleExportCSV} className="btn-secondary" style={{ fontSize: 13 }}>
+                        <Download size={15} />
+                        Export Data
+                    </button>
                 </div>
             </motion.div>
 

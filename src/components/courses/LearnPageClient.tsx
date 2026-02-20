@@ -18,12 +18,14 @@ import {
     ChevronRight,
     Menu,
     Play,
-    Lock
+    Lock,
+    MessageSquare,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import dynamic from 'next/dynamic';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
+import LessonDiscussions from "./LessonDiscussions";
 
 // Load ReactPlayer dynamically to avoid SSR issues
 const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as any;
@@ -42,7 +44,7 @@ interface LearnPageClientProps {
     userEmail: string;
 }
 
-type Tab = "notes" | "resources";
+type Tab = "notes" | "resources" | "discussions";
 
 export default function LearnPageClient({
     course,
@@ -632,7 +634,7 @@ export default function LearnPageClient({
                                 marginBottom: 20,
                             }}
                         >
-                            {(["notes", "resources"] as Tab[]).map((tab) => (
+                            {(["notes", "resources", "discussions"] as Tab[]).map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -652,7 +654,7 @@ export default function LearnPageClient({
                                         transition: "all 0.2s",
                                     }}
                                 >
-                                    {tab === "notes" ? <FileText size={14} /> : <Download size={14} />}
+                                    {tab === "notes" ? <FileText size={14} /> : tab === "resources" ? <Download size={14} /> : <MessageSquare size={14} />}
                                     {tab}
                                 </button>
                             ))}
@@ -713,6 +715,12 @@ export default function LearnPageClient({
                                         </p>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {activeTab === "discussions" && (
+                            <div className="card" style={{ padding: "24px" }}>
+                                <LessonDiscussions lessonId={currentLesson.id} courseId={course.id} />
                             </div>
                         )}
                     </div>

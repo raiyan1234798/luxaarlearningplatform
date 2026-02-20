@@ -1,5 +1,9 @@
 import CourseDetailClientPage from "./CourseDetailClientPage";
 
+export function generateStaticParams() {
+    return [{ courseId: "default" }];
+}
+
 export default function CourseDetailPage({
     params,
 }: {
