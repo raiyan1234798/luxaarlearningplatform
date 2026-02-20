@@ -24,15 +24,21 @@ const PREMIUM_COURSES = [
                         video_url: "https://www.youtube.com/watch?v=ZjAqacIC_3c",
                         video_type: "youtube",
                         duration: 650,
-                        notes: "## Key Concepts\n- The physical file system dictates routing.\n- `page.tsx` makes a route publicly accessible.\n- `layout.tsx` wraps the UI of nested pages.\n\n### Why Server Components?\nBy default, all components are Server Components. This allows you to fetch data directly on the server without shipping the client hydration overhead."
+                        notes: "## Key Concepts\n- The physical file system dictates routing.\n- `page.tsx` makes a route publicly accessible.\n- `layout.tsx` wraps the UI of nested pages.\n\n### Why Server Components?\nBy default, all components are Server Components. This allows you to fetch data directly on the server without shipping the client hydration overhead.",
+                        quiz_link: "https://docs.google.com/forms/d/e/1FAIpQLSf4M0iNnUXYb4-k-PqWw2mI0l-s3Q/viewform?usp=sf_link",
+                        resources: [
+                            { name: "Official Framework Docs", url: "https://nextjs.org/docs", type: "Link" }
+                        ]
                     },
                     {
                         title: "Server vs Client Components",
                         description: "When to use 'use client' and how to interleave tree boundaries.",
-                        video_url: "https://www.youtube.com/watch?v=RMBwTjJtZlE",
-                        video_type: "youtube",
+                        video_url: "https://vimeo.com/76979871",
+                        video_type: "vimeo",
                         duration: 840,
-                        notes: "Remember: Only add `'use client'` when you strictly need interactivity (onClick hooks) or browser APIs (window.scrollY).\n\nKeep client components as low in the tree as possible!"
+                        notes: "Remember: Only add `'use client'` when you strictly need interactivity (onClick hooks) or browser APIs (window.scrollY).\n\nKeep client components as low in the tree as possible!",
+                        quiz_link: "",
+                        resources: []
                     }
                 ]
             },
@@ -42,11 +48,16 @@ const PREMIUM_COURSES = [
                 lessons: [
                     {
                         title: "Static vs Dynamic Rendering",
-                        description: "How Next.js optimizes your pages automatically.",
-                        video_url: "https://www.youtube.com/watch?v=Vbl4mHhEEaA",
-                        video_type: "youtube",
+                        description: "How Next.js optimizes your pages automatically. (Raw MP4 Example)",
+                        video_url: "https://www.w3schools.com/html/mov_bbb.mp4",
+                        video_type: "mp4",
                         duration: 520,
-                        notes: "## Caching Strategies\n- `force-cache` (Default)\n- `no-store` (Dynamic SSR)\n- `revalidate: 3600` (Incremental Static Regeneration)"
+                        notes: "## Caching Strategies\n- `force-cache` (Default)\n- `no-store` (Dynamic SSR)\n- `revalidate: 3600` (Incremental Static Regeneration)",
+                        quiz_link: "https://forms.gle/samplequizlink123",
+                        resources: [
+                            { name: "Caching Cheat Sheet", url: "https://example.com/caching.pdf", type: "PDF" },
+                            { name: "Source Code", url: "https://github.com/example/demo-code", type: "Link" }
+                        ]
                     }
                 ]
             }
@@ -69,7 +80,9 @@ const PREMIUM_COURSES = [
                         video_url: "https://www.youtube.com/watch?v=l-vE5j5yZRE",
                         video_type: "youtube",
                         duration: 415,
-                        notes: "## Golden Rule\nIf everything is important, nothing is important.\n\n### Practice:\nTry stripping all color from your design (grayscale test). Can you still tell what the primary action is?"
+                        notes: "## Golden Rule\nIf everything is important, nothing is important.\n\n### Practice:\nTry stripping all color from your design (grayscale test). Can you still tell what the primary action is?",
+                        quiz_link: "https://forms.gle/design-quiz-check",
+                        resources: []
                     }
                 ]
             }
@@ -88,11 +101,15 @@ const PREMIUM_COURSES = [
                 lessons: [
                     {
                         title: "DataFrames and Series",
-                        description: "Basic data structures in Pandas.",
-                        video_url: "https://www.youtube.com/watch?v=zmdjNSmRXF4",
-                        video_type: "youtube",
+                        description: "Basic data structures in Pandas (Loom Embed Example).",
+                        video_url: "https://www.loom.com/share/255b9a89765243889146522c15981446",
+                        video_type: "loom",
                         duration: 900,
-                        notes: "```python\nimport pandas as pd\ndf = pd.read_csv('data.csv')\ndf.head()\n```"
+                        notes: "```python\nimport pandas as pd\ndf = pd.read_csv('data.csv')\ndf.head()\n```",
+                        quiz_link: "",
+                        resources: [
+                            { name: "Sample Data CSV", url: "https://example.com/data.csv", type: "Document" }
+                        ]
                     }
                 ]
             }
