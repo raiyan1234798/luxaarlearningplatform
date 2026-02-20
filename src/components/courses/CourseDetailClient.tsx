@@ -386,7 +386,7 @@ export default function CourseDetailClient({
                                 <p style={{ fontSize: 12, color: "#c9a84c", marginBottom: 16 }}>
                                     {enrollment.progress_percentage}% complete
                                 </p>
-                                <Link href={`/dashboard/courses/${course.id}/learn`}>
+                                <Link href={`/dashboard/courses/learn?id=${course.id}`}>
                                     <button
                                         className="btn-primary"
                                         style={{ width: "100%", justifyContent: "center" }}
@@ -468,7 +468,7 @@ export default function CourseDetailClient({
                                                 You now have access to this course.
                                             </p>
                                         </div>
-                                        <Link href={`/dashboard/courses/${course.id}/learn`}>
+                                        <Link href={`/dashboard/courses/learn?id=${course.id}`}>
                                             <button
                                                 className="btn-primary"
                                                 style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
@@ -536,7 +536,7 @@ export default function CourseDetailClient({
 
                         {isAdmin && (
                             <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-                                <Link href={`/dashboard/admin/courses/${course.id}/edit`}>
+                                <Link href={`/dashboard/admin/courses/edit?id=${course.id}`}>
                                     <button
                                         className="btn-secondary"
                                         style={{ width: "100%", justifyContent: "center", fontSize: 13 }}

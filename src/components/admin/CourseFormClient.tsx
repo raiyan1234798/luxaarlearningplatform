@@ -352,7 +352,7 @@ export default function CourseFormClient({
             }
 
             toast.success(mode === "create" ? "Course created!" : "Course updated!");
-            router.push(`/dashboard/courses/${courseId}`);
+            router.push(`/dashboard/courses/view?id=${courseId}`);
         } catch (error: any) {
             console.error("Error saving course:", error);
             toast.error("Failed to save course: " + error.message);

@@ -649,7 +649,7 @@ export default function AdminDashboard({
                         {recentCourses.map((c) => (
                             <Link
                                 key={c.id}
-                                href={`/dashboard/courses/${c.id}`}
+                                href={`/dashboard/courses/view?id=${c.id}`}
                                 style={{ textDecoration: "none" }}
                             >
                                 <div

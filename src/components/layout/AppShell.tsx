@@ -713,7 +713,7 @@ export default function AppShell({ children, profile }: AppShellProps) {
                                                         onClick={() => {
                                                             if (!notif.is_read) markAsRead(notif.id);
                                                             if (notif.course_id) {
-                                                                router.push(`/dashboard/courses/${notif.course_id}/learn`);
+                                                                router.push(`/dashboard/courses/learn?id=${notif.course_id}`);
                                                                 setShowNotifications(false);
                                                             }
                                                         }}

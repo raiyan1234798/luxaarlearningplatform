@@ -212,7 +212,7 @@ export default function StudentDashboard({
                     <h2 style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 14 }}>
                         Continue Watching
                     </h2>
-                    <Link href={`/dashboard/courses/${continueWatching.course.id}/learn`} style={{ textDecoration: "none" }}>
+                    <Link href={`/dashboard/courses/learn?id=${continueWatching.course.id}`} style={{ textDecoration: "none" }}>
                         <div
                             className="card"
                             style={{

@@ -18,8 +18,8 @@ export function CourseCard({ course, progress, isEnrolled }: CourseCardProps) {
         <Link
             href={
                 isEnrolled
-                    ? `/dashboard/courses/${course.id}/learn`
-                    : `/dashboard/courses/${course.id}`
+                    ? `/dashboard/courses/learn?id=${course.id}`
+                    : `/dashboard/courses/view?id=${course.id}`
             }
             style={{ textDecoration: "none" }}
         >

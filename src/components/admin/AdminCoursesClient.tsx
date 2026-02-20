@@ -230,7 +230,7 @@ export default function AdminCoursesClient({ courses: initialCourses }: AdminCou
                                     {course.is_published ? <EyeOff size={16} /> : <Eye size={16} />}
                                 </button>
 
-                                <Link href={`/dashboard/admin/courses/${course.id}/edit`}>
+                                <Link href={`/dashboard/admin/courses/edit?id=${course.id}`}>
                                     <button
                                         title="Edit"
                                         style={{
