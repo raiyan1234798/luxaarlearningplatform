@@ -2,7 +2,6 @@
 
 import { useAuth } from "@/lib/contexts/AuthContext";
 import LearnPageClient from "@/components/courses/LearnPageClient";
-import { MOCK_COURSES, MOCK_MODULES } from "@/lib/mockData";
 import { notFound, useSearchParams, useRouter } from "next/navigation";
 import { use, useEffect, useState, Suspense } from "react";
 import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
@@ -85,17 +84,6 @@ function LearnPageContent({
                     modules.sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
 
                     setCourseData({ ...cData, id: courseDoc.id, modules });
-                } else {
-                    // Fallback to MOCK
-                    const mockC = MOCK_COURSES.find(c => c.id === courseId);
-                    if (mockC) {
-                        setCourseData({
-                            ...mockC,
-                            modules: MOCK_MODULES.filter(m => m.course_id === courseId)
-                        });
-                    } else {
-                        setCourseData(null);
-                    }
                 }
 
             } catch (e) {

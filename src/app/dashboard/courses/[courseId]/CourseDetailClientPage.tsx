@@ -2,7 +2,6 @@
 
 import { useAuth } from "@/lib/contexts/AuthContext";
 import CourseDetailClient from "@/components/courses/CourseDetailClient";
-import { MOCK_COURSES, MOCK_MODULES } from "@/lib/mockData";
 import { notFound } from "next/navigation";
 import { use, useEffect, useState } from "react";
 import { collection, getDocs, query, where, doc, getDoc } from "firebase/firestore";
@@ -82,15 +81,6 @@ export default function CourseDetailClientPage({
                     modules.sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
 
                     setFirestoreCourse({ ...cData, id: docSnap.id, modules: modules as any[] } as Course);
-                } else {
-                    // Check mock
-                    const mock = MOCK_COURSES.find(c => c.id === courseId);
-                    if (mock) {
-                        setFirestoreCourse({
-                            ...mock,
-                            modules: MOCK_MODULES.filter(m => m.course_id === courseId) as any[]
-                        } as unknown as Course);
-                    }
                 }
             } catch (e) {
                 console.error("Error fetching course:", e);

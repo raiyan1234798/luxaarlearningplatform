@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 import { collection, getDocs, query, orderBy, where } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import type { Profile, DashboardStats, Course, CourseAccessRequest, Enrollment } from "@/types";
-import { MOCK_COURSES } from "@/lib/mockData";
 import LuxaarLoader from "@/components/ui/LuxaarLoader";
 
 export default function DashboardPage() {
@@ -52,11 +51,7 @@ export default function DashboardPage() {
                         coursesList.push({ id: doc.id, ...doc.data() } as Course);
                     });
                 } catch (e) {
-                    coursesList = MOCK_COURSES as any[];
-                }
-
-                if (coursesList.length === 0) {
-                    coursesList = MOCK_COURSES as any[];
+                    // Collection may not exist yet
                 }
 
                 // Fetch course access requests
@@ -114,11 +109,7 @@ export default function DashboardPage() {
                         coursesList.push({ id: doc.id, ...doc.data() } as Course);
                     });
                 } catch (e) {
-                    coursesList = MOCK_COURSES as any[];
-                }
-
-                if (coursesList.length === 0) {
-                    coursesList = MOCK_COURSES as any[];
+                    // Collection may not exist yet
                 }
 
                 setRecentCourses(coursesList);
@@ -138,9 +129,8 @@ export default function DashboardPage() {
                     enrollmentDocs.sort((a, b) => new Date(b.enrolled_at).getTime() - new Date(a.enrolled_at).getTime());
 
                     // Build course map
-                    const mockCourses = MOCK_COURSES as Course[];
                     const courseMap = new Map<string, Course>();
-                    [...mockCourses, ...coursesList].forEach((c) => courseMap.set(c.id, c));
+                    coursesList.forEach((c) => courseMap.set(c.id, c));
 
                     // Enrich enrollments with course data
                     const enriched = enrollmentDocs

@@ -2,7 +2,6 @@
 
 import { useAuth } from "@/lib/contexts/AuthContext";
 import CoursesPageClient from "@/components/courses/CoursesPageClient";
-import { MOCK_COURSES } from "@/lib/mockData";
 import { useEffect, useState } from "react";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
@@ -26,13 +25,9 @@ export default function CoursesPage() {
 
                 if (coursesList.length > 0) {
                     setCourses(coursesList);
-                } else {
-                    // Fallback to mock data
-                    setCourses(MOCK_COURSES as any[]);
                 }
             } catch (error) {
                 console.error("Error fetching courses:", error);
-                setCourses(MOCK_COURSES as any[]);
             } finally {
                 setLoading(false);
             }

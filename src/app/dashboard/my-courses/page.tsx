@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
 import type { Course, Enrollment } from "@/types";
-import { MOCK_COURSES } from "@/lib/mockData";
+
 import LuxaarLoader from "@/components/ui/LuxaarLoader";
 
 export default function MyCoursesPage() {
@@ -52,10 +52,8 @@ export default function MyCoursesPage() {
                     // fallback
                 }
 
-                // 3. Also include mock courses as fallback
-                const mockCourses = MOCK_COURSES as Course[];
                 const courseMap = new Map<string, Course>();
-                [...mockCourses, ...allCourses].forEach((c) => courseMap.set(c.id, c));
+                allCourses.forEach((c) => courseMap.set(c.id, c));
 
                 // 4. Match enrollments to courses
                 const enrichedEnrollments = enrollmentDocs
