@@ -13,12 +13,24 @@
                 "destination": "/dashboard/admin/courses/default/edit.html"
             },
             {
+                "source": "/dashboard/admin/courses/*/edit.txt",
+                "destination": "/dashboard/admin/courses/default/edit.txt"
+            },
+            {
                 "source": "/dashboard/courses/*/learn",
                 "destination": "/dashboard/courses/default/learn.html"
             },
             {
+                "source": "/dashboard/courses/*/learn.txt",
+                "destination": "/dashboard/courses/default/learn.txt"
+            },
+            {
                 "source": "/dashboard/courses/*",
                 "destination": "/dashboard/courses/default.html"
+            },
+            {
+                "source": "/dashboard/courses/*.txt",
+                "destination": "/dashboard/courses/default.txt"
             }
         ]
     },
