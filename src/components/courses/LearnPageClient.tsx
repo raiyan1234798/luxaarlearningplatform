@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { db } from "@/lib/firebase/client";
 import { doc, setDoc, updateDoc, collection, query, where, getDocs, getDoc } from "firebase/firestore";
-import { getVideoEmbedUrl, formatDuration, isEmbeddableVideo } from "@/lib/utils";
+import { formatDuration, getVideoEmbedUrl, isEmbeddableVideo } from "@/lib/utils";
 import type { Lesson, LessonProgress, Module } from "@/types";
 import {
     ChevronDown,
@@ -17,9 +17,16 @@ import {
     ChevronLeft,
     ChevronRight,
     Menu,
-    X,
+    Play,
+    Lock
 } from "lucide-react";
 import toast from "react-hot-toast";
+import dynamic from 'next/dynamic';
+import Confetti from 'react-confetti';
+import { useWindowSize } from 'react-use';
+
+// Load ReactPlayer dynamically to avoid SSR issues
+const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as any;
 
 interface FullCourse {
     id: string;
@@ -64,6 +71,12 @@ export default function LearnPageClient({
         Object.fromEntries(progress.map((p) => [p.lesson_id, p]))
     );
 
+    const [videoCompleted, setVideoCompleted] = useState(false);
+    const [showConfetti, setShowConfetti] = useState(false);
+    const [maxPlayed, setMaxPlayed] = useState(0);
+    const playerRef = useRef<any>(null);
+    const { width, height } = useWindowSize();
+
     const currentLessonIndex = allLessons.findIndex(
         (l) => l.id === currentLesson?.id
     );
@@ -77,6 +90,42 @@ export default function LearnPageClient({
     const overallProgress = allLessons.length > 0
         ? Math.round((completedCount / allLessons.length) * 100)
         : 0;
+
+    // Determine if we can track progress (Check URL pattern first, then fall back to type)
+    const isYouTubeOrVimeo = currentLesson?.video_url ?
+        (currentLesson.video_url.includes('youtube.com') ||
+            currentLesson.video_url.includes('youtu.be') ||
+            currentLesson.video_url.includes('vimeo.com')) : false;
+
+    const isTrackable = currentLesson ?
+        isYouTubeOrVimeo ||
+        ["youtube", "vimeo", "video"].includes(currentLesson.video_type) ||
+        !["google_drive", "loom"].includes(currentLesson.video_type)
+        : false;
+
+    // Helper to determine if we should use iframe fallback (Drive, Loom) - UNLESS it's actually YouTube/Vimeo
+    const useIframeFallback = currentLesson ?
+        !isYouTubeOrVimeo && ["google_drive", "loom"].includes(currentLesson.video_type)
+        : false;
+
+    // Reset video state when lesson changes
+    useEffect(() => {
+        if (currentLesson) {
+            const isCompleted = lessonProgress[currentLesson.id]?.completed || false;
+            setVideoCompleted(isCompleted);
+            setMaxPlayed(0); // Reset max played for new lesson
+        }
+    }, [currentLesson, lessonProgress]);
+
+    // Check for course completion animation
+    useEffect(() => {
+        if (overallProgress === 100 && !showConfetti) {
+            setShowConfetti(true);
+            const timer = setTimeout(() => setShowConfetti(false), 8000); // Stop after 8s
+            return () => clearTimeout(timer);
+        }
+    }, [overallProgress]);
+
 
     const markComplete = useCallback(
         async (lessonId: string) => {
@@ -130,7 +179,8 @@ export default function LearnPageClient({
                     });
                 }
 
-                toast.success("Lesson marked complete!");
+                toast.success("Lesson completed!");
+                setVideoCompleted(true);
             } catch (error) {
                 console.error("Error marking lesson complete:", error);
                 toast.error("Failed to update progress");
@@ -139,7 +189,31 @@ export default function LearnPageClient({
         [userId, course.id, lessonProgress, allLessons]
     );
 
+    // Prevent skipping ahead
+    const handleProgress = (state: { playedSeconds: number; played: number; loaded: number; loadedSeconds: number }) => {
+        if (!currentLesson || !isTrackable) return;
+        const isCompleted = lessonProgress[currentLesson.id]?.completed;
 
+        // If already completed, allow free seeking
+        if (isCompleted) return;
+
+        // If trying to seek forward beyond significantly what was watched
+        if (state.playedSeconds > maxPlayed + 2) { // Allow tiny buffering/jitter
+            // Revert to maxPlayed
+            if (playerRef.current) {
+                playerRef.current.seekTo(maxPlayed, 'seconds');
+                toast.error("Please watch the video without skipping to complete the lesson.", { id: "no-skip" });
+            }
+        } else {
+            setMaxPlayed(Math.max(maxPlayed, state.playedSeconds));
+        }
+    };
+
+    const handleVideoEnded = () => {
+        if (currentLesson && !lessonProgress[currentLesson.id]?.completed) {
+            markComplete(currentLesson.id);
+        }
+    };
 
     function toggleModule(moduleId: string) {
         setExpandedModules((prev) => {
@@ -150,7 +224,18 @@ export default function LearnPageClient({
         });
     }
 
+    function isLessonLocked(lessonId: string): boolean {
+        const index = allLessons.findIndex((l) => l.id === lessonId);
+        if (index <= 0) return false; // First lesson always unlocked
+        const prevLessonId = allLessons[index - 1].id;
+        return !lessonProgress[prevLessonId]?.completed;
+    }
+
     function selectLesson(lesson: Lesson) {
+        if (isLessonLocked(lesson.id)) {
+            toast.error("Please complete the previous lesson first.", { id: "locked-lesson" });
+            return;
+        }
         setCurrentLesson(lesson);
         setSidebarOpen(false);
     }
@@ -234,10 +319,13 @@ export default function LearnPageClient({
                                     .map((lesson) => {
                                         const isActive = lesson.id === currentLesson?.id;
                                         const isDone = lessonProgress[lesson.id]?.completed;
+                                        const isLocked = isLessonLocked(lesson.id);
+
                                         return (
                                             <button
                                                 key={lesson.id}
                                                 onClick={() => selectLesson(lesson)}
+                                                disabled={isLocked}
                                                 style={{
                                                     width: "100%",
                                                     display: "flex",
@@ -247,12 +335,15 @@ export default function LearnPageClient({
                                                     borderRadius: 8,
                                                     background: isActive ? "rgba(201,168,76,0.1)" : "transparent",
                                                     border: "none",
-                                                    cursor: "pointer",
+                                                    cursor: isLocked ? "not-allowed" : "pointer",
                                                     textAlign: "left",
                                                     transition: "all 0.15s",
+                                                    opacity: isLocked ? 0.6 : 1,
                                                 }}
                                             >
-                                                {isDone ? (
+                                                {isLocked ? (
+                                                    <Lock size={14} color="var(--text-muted)" />
+                                                ) : isDone ? (
                                                     <CheckCircle size={14} color="#4ade80" />
                                                 ) : (
                                                     <Circle size={14} color={isActive ? "#c9a84c" : "var(--text-muted)"} />
@@ -289,8 +380,11 @@ export default function LearnPageClient({
                 height: "calc(100vh - 60px)",
                 margin: "-28px -20px",
                 overflow: "hidden",
+                position: "relative"
             }}
         >
+            {showConfetti && <Confetti width={width} height={height} numberOfPieces={500} recycle={false} />}
+
             {/* Desktop sidebar */}
             <div
                 style={{
@@ -396,32 +490,54 @@ export default function LearnPageClient({
                             </button>
                         </a>
                     )}
-                    {currentLesson && !lessonProgress[currentLesson.id]?.completed && (
-                        <button
-                            className="btn-primary"
-                            onClick={() => markComplete(currentLesson.id)}
-                            style={{ fontSize: 12, padding: "7px 14px", flexShrink: 0 }}
-                        >
-                            <CheckCircle size={14} />
-                            Mark Complete
-                        </button>
-                    )}
-                    {currentLesson && lessonProgress[currentLesson.id]?.completed && (
-                        <div
-                            style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 6,
-                                fontSize: 12,
-                                color: "#4ade80",
-                                padding: "7px 14px",
-                                borderRadius: 8,
-                                background: "rgba(74,222,128,0.1)",
-                            }}
-                        >
-                            <CheckCircle size={14} />
-                            <span>Completed</span>
-                        </div>
+
+                    {/* Completion Status / Button */}
+                    {currentLesson && (
+                        lessonProgress[currentLesson.id]?.completed ? (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    fontSize: 12,
+                                    color: "#4ade80",
+                                    padding: "7px 14px",
+                                    borderRadius: 8,
+                                    background: "rgba(74,222,128,0.1)",
+                                }}
+                            >
+                                <CheckCircle size={14} />
+                                <span>Completed</span>
+                            </div>
+                        ) : !isTrackable ? (
+                            <button
+                                className="btn-primary"
+                                onClick={() => markComplete(currentLesson.id)}
+                                style={{ fontSize: 12, padding: "7px 14px", flexShrink: 0 }}
+                            >
+                                <CheckCircle size={14} />
+                                Mark Complete
+                            </button>
+                        ) : (
+                            <button
+                                className="btn-secondary"
+                                disabled={true}
+                                style={{
+                                    fontSize: 12,
+                                    padding: "7px 14px",
+                                    flexShrink: 0,
+                                    cursor: "not-allowed",
+                                    opacity: 0.6,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6
+                                }}
+                                title="Watch the full video to complete"
+                            >
+                                <Lock size={12} />
+                                Watch to Complete
+                            </button>
+                        )
                     )}
                 </div>
 
@@ -429,36 +545,46 @@ export default function LearnPageClient({
                 {currentLesson && (
                     <div style={{ padding: "20px", maxWidth: 960, width: "100%" }}>
                         <div
-                            style={{ position: "relative", marginBottom: 20 }}
+                            style={{
+                                position: "relative",
+                                marginBottom: 20,
+                                borderRadius: 12,
+                                overflow: "hidden",
+                                background: "#000",
+                                aspectRatio: "16/9"
+                            }}
                         >
-                            {isEmbeddableVideo(currentLesson.video_type) ? (
-                                <div className="video-container">
-                                    <iframe
-                                        src={getVideoEmbedUrl(currentLesson.video_url, currentLesson.video_type)}
-                                        allow="autoplay; fullscreen; picture-in-picture"
-                                        allowFullScreen
-                                        title={currentLesson.title}
-                                    />
-                                </div>
+                            {!useIframeFallback ? (
+                                <ReactPlayer
+                                    ref={playerRef}
+                                    url={currentLesson.video_url}
+                                    width="100%"
+                                    height="100%"
+                                    controls={true}
+                                    onEnded={handleVideoEnded}
+                                    onProgress={handleProgress}
+                                    config={{
+                                        file: {
+                                            attributes: {
+                                                controlsList: 'nodownload'
+                                            }
+                                        }
+                                    }}
+                                />
                             ) : (
-                                <div className="video-container">
-                                    <video
-                                        src={getVideoEmbedUrl(currentLesson.video_url, currentLesson.video_type)}
-                                        controls
-                                        controlsList="nodownload"
-                                        playsInline
-                                        onEnded={() => markComplete(currentLesson.id)}
-                                        style={{
-                                            width: "100%",
-                                            aspectRatio: "16/9",
-                                            borderRadius: 12,
-                                            background: "#000",
-                                        }}
-                                    >
-                                        Your browser does not support the video tag.
-                                    </video>
-                                </div>
+                                <iframe
+                                    src={getVideoEmbedUrl(currentLesson.video_url, currentLesson.video_type)}
+                                    allow="autoplay; fullscreen; picture-in-picture"
+                                    allowFullScreen
+                                    title={currentLesson.title}
+                                    style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        border: "none",
+                                    }}
+                                />
                             )}
+
                             {/* Watermark */}
                             <div className="video-watermark" style={{ position: "absolute" }}>
                                 {userEmail}
@@ -485,8 +611,12 @@ export default function LearnPageClient({
                             <button
                                 className="btn-primary"
                                 onClick={() => nextLesson && selectLesson(nextLesson)}
-                                disabled={!nextLesson}
-                                style={{ fontSize: 13 }}
+                                disabled={!nextLesson || isLessonLocked(nextLesson?.id || "")}
+                                style={{
+                                    fontSize: 13,
+                                    opacity: (!nextLesson || isLessonLocked(nextLesson?.id || "")) ? 0.6 : 1,
+                                    cursor: (!nextLesson || isLessonLocked(nextLesson?.id || "")) ? "not-allowed" : "pointer"
+                                }}
                             >
                                 Next
                                 <ChevronRight size={15} />

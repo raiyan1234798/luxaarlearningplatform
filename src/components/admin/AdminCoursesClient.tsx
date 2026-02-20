@@ -4,7 +4,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { createClient } from "@/lib/supabase/client";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase/client";
 import type { Course } from "@/types";
 import {
     Search,
@@ -22,7 +23,6 @@ interface AdminCoursesClientProps {
 }
 
 export default function AdminCoursesClient({ courses: initialCourses }: AdminCoursesClientProps) {
-    const supabase = createClient();
     const [courses, setCourses] = useState<Course[]>(initialCourses);
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState<string | null>(null);
@@ -33,20 +33,20 @@ export default function AdminCoursesClient({ courses: initialCourses }: AdminCou
 
     async function togglePublish(courseId: string, currentStatus: boolean) {
         setLoading(courseId);
-        const { error } = await supabase
-            .from("courses")
-            .update({ is_published: !currentStatus })
-            .eq("id", courseId);
-
-        if (error) {
-            toast.error("Failed to update status");
-        } else {
+        try {
+            await updateDoc(doc(db, "courses", courseId), {
+                is_published: !currentStatus,
+                updated_at: new Date().toISOString(),
+            });
             toast.success(currentStatus ? "Course unpublished" : "Course published");
             setCourses((prev) =>
                 prev.map((c) =>
                     c.id === courseId ? { ...c, is_published: !currentStatus } : c
                 )
             );
+        } catch (error) {
+            console.error("Error toggling publish:", error);
+            toast.error("Failed to update status");
         }
         setLoading(null);
     }
