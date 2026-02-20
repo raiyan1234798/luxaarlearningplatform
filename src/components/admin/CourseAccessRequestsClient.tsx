@@ -688,6 +688,7 @@ export default function CourseAccessRequestsClient({
                                                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
                                                     <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Student</th>
                                                     <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Enrolled On</th>
+                                                    <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Status</th>
                                                     <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase" }}>Progress</th>
                                                 </tr>
                                             </thead>
@@ -709,11 +710,52 @@ export default function CourseAccessRequestsClient({
                                                             {formatDate(student.enrolled_at)}
                                                         </td>
                                                         <td style={{ padding: "12px 16px" }}>
+                                                            <span
+                                                                style={{
+                                                                    fontSize: 12,
+                                                                    padding: "3px 10px",
+                                                                    borderRadius: 999,
+                                                                    fontWeight: 500,
+                                                                    background:
+                                                                        student.progress_percentage === 100 || student.completed_at
+                                                                            ? "rgba(74,222,128,0.1)"
+                                                                            : student.progress_percentage > 0
+                                                                                ? "rgba(201,168,76,0.1)"
+                                                                                : "var(--bg-secondary)",
+                                                                    color:
+                                                                        student.progress_percentage === 100 || student.completed_at
+                                                                            ? "#4ade80"
+                                                                            : student.progress_percentage > 0
+                                                                                ? "#c9a84c"
+                                                                                : "var(--text-muted)",
+                                                                    display: "inline-flex",
+                                                                    alignItems: "center",
+                                                                    gap: 4,
+                                                                    whiteSpace: "nowrap"
+                                                                }}
+                                                            >
+                                                                <span
+                                                                    style={{
+                                                                        width: 6,
+                                                                        height: 6,
+                                                                        background: "currentColor",
+                                                                        borderRadius: "50%",
+                                                                        display: "inline-block",
+                                                                    }}
+                                                                />
+                                                                {student.progress_percentage === 100 || student.completed_at
+                                                                    ? "Completed"
+                                                                    : student.progress_percentage > 0
+                                                                        ? "In Progress"
+                                                                        : "Enrolled"}
+                                                            </span>
+                                                        </td>
+                                                        <td style={{ padding: "12px 16px" }}>
                                                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                                                 <div style={{ flex: 1, height: 6, background: "var(--bg-secondary)", borderRadius: 999, width: 100 }}>
-                                                                    <div style={{ height: "100%", width: `${student.progress_percentage || 0}%`, background: "#4ade80", borderRadius: 999 }} />
+                                                                    <div style={{ height: "100%", width: `${student.progress_percentage || 0}%`, background: student.progress_percentage === 100 || student.completed_at ? "#4ade80" : "#c9a84c", borderRadius: 999 }} />
                                                                 </div>
-                                                                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{student.progress_percentage || 0}%</div>
+                                                                <div style={{ fontSize: 12, fontWeight: 500, color: student.progress_percentage === 100 || student.completed_at ? "#4ade80" : "var(--text-primary)" }}>{student.progress_percentage || 0}%</div>
                                                             </div>
                                                         </td>
                                                     </tr>
