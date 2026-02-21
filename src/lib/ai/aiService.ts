@@ -412,18 +412,28 @@ async function streamGemini(
     let firstTokenTime: number | null = null;
 
     try {
+        // Separate system prompt and conversation
+        const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+
         const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
+        const modelConfig: any = {
             model: modelName,
             generationConfig: {
                 temperature: options?.temperature ?? 0.7,
                 maxOutputTokens: options?.max_tokens ?? 1024,
                 topP: 0.9,
             },
-        });
+        };
 
-        // Separate system prompt and conversation
-        const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+        if (systemPrompt) {
+            modelConfig.systemInstruction = {
+                role: "system",
+                parts: [{ text: systemPrompt }]
+            };
+        }
+
+        const model = genAI.getGenerativeModel(modelConfig);
+
         const chatMessages = messages
             .filter(m => m.role !== "system")
             .map(m => ({
@@ -440,7 +450,6 @@ async function streamGemini(
 
         const chat = model.startChat({
             history: chatMessages,
-            systemInstruction: systemPrompt || undefined,
         });
 
         // Stream response
