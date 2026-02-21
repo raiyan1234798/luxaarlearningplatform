@@ -19,9 +19,10 @@ import { db } from "@/lib/firebase/client";
 export default function AISettingsClient() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [health, setHealth] = useState<{ status: string; ollama: string; models: string[]; gemini?: string; geminiModel?: string; activeProvider?: AIProvider }>({
+    const [health, setHealth] = useState<{ status: string; ollama: string; models: string[]; gemini?: string; groq?: string; geminiModel?: string; groqModel?: string; activeProvider?: AIProvider }>({
         status: "unknown",
         ollama: "unknown",
+        groq: "unknown",
         models: [],
         gemini: "unknown",
     });
@@ -215,6 +216,17 @@ export default function AISettingsClient() {
                             </span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>⚡ Groq Cloud</span>
+                            <span style={{
+                                fontSize: 11, fontWeight: 600,
+                                padding: "2px 10px", borderRadius: 999,
+                                background: health.groq === "connected" ? "rgba(74,222,128,0.1)" : health.groq === "not_configured" ? "rgba(251,191,36,0.1)" : "rgba(248,113,113,0.1)",
+                                color: health.groq === "connected" ? "#4ade80" : health.groq === "not_configured" ? "#fbbf24" : "#f87171",
+                            }}>
+                                {health.groq === "connected" ? "Connected" : health.groq === "not_configured" ? "No API Key" : "Error"}
+                            </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Active Provider</span>
                             <span style={{
                                 fontSize: 11, fontWeight: 600,
@@ -222,7 +234,7 @@ export default function AISettingsClient() {
                                 background: "rgba(124,58,237,0.1)",
                                 color: "#a78bfa",
                             }}>
-                                {health.activeProvider === "gemini" ? "☁️ Gemini Cloud" : "💻 Ollama Local"}
+                                {health.activeProvider === "groq" ? "⚡ Groq Cloud" : health.activeProvider === "gemini" ? "☁️ Gemini Cloud" : "💻 Ollama Local"}
                             </span>
                         </div>
                     </div>
@@ -358,11 +370,59 @@ export default function AISettingsClient() {
                         <label className="label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                             <Cloud size={12} /> AI Provider
                         </label>
-                        <div style={{ display: "flex", gap: 8 }}>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <button
+                                onClick={() => setSettings(p => ({ ...p, provider: "auto" }))}
+                                style={{
+                                    flex: "1 1 calc(50% - 4px)", padding: "12px 16px", borderRadius: 12,
+                                    border: settings.provider === "auto"
+                                        ? "2px solid #7c3aed"
+                                        : "1px solid var(--border)",
+                                    background: settings.provider === "auto"
+                                        ? "rgba(124,58,237,0.08)"
+                                        : "var(--bg-secondary)",
+                                    cursor: "pointer",
+                                    textAlign: "left",
+                                }}
+                            >
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
+                                    ✨ Auto Route
+                                    <span style={{
+                                        fontSize: 9, fontWeight: 700,
+                                        padding: "1px 6px", borderRadius: 4,
+                                        background: "rgba(74,222,128,0.15)",
+                                        color: "#4ade80",
+                                    }}>RECOMMENDED</span>
+                                </div>
+                                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                                    Automatically routes to the fastest available cloud (Groq → Gemini)
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => setSettings(p => ({ ...p, provider: "groq" }))}
+                                style={{
+                                    flex: "1 1 calc(50% - 4px)", padding: "12px 16px", borderRadius: 12,
+                                    border: settings.provider === "groq"
+                                        ? "2px solid #7c3aed"
+                                        : "1px solid var(--border)",
+                                    background: settings.provider === "groq"
+                                        ? "rgba(124,58,237,0.08)"
+                                        : "var(--bg-secondary)",
+                                    cursor: "pointer",
+                                    textAlign: "left",
+                                }}
+                            >
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
+                                    ⚡ Groq Cloud
+                                </div>
+                                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                                    Ultra-low latency Llama 3 models
+                                </div>
+                            </button>
                             <button
                                 onClick={() => setSettings(p => ({ ...p, provider: "gemini" }))}
                                 style={{
-                                    flex: 1, padding: "12px 16px", borderRadius: 12,
+                                    flex: "1 1 calc(50% - 4px)", padding: "12px 16px", borderRadius: 12,
                                     border: settings.provider === "gemini"
                                         ? "2px solid #7c3aed"
                                         : "1px solid var(--border)",
@@ -375,21 +435,15 @@ export default function AISettingsClient() {
                             >
                                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
                                     ☁️ Google Gemini
-                                    <span style={{
-                                        fontSize: 9, fontWeight: 700,
-                                        padding: "1px 6px", borderRadius: 4,
-                                        background: "rgba(74,222,128,0.15)",
-                                        color: "#4ade80",
-                                    }}>RECOMMENDED</span>
                                 </div>
                                 <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                                    Cloud AI — works for all users, free tier
+                                    High context window backups (Free Tier)
                                 </div>
                             </button>
                             <button
                                 onClick={() => setSettings(p => ({ ...p, provider: "ollama" }))}
                                 style={{
-                                    flex: 1, padding: "12px 16px", borderRadius: 12,
+                                    flex: "1 1 calc(50% - 4px)", padding: "12px 16px", borderRadius: 12,
                                     border: settings.provider === "ollama"
                                         ? "2px solid #7c3aed"
                                         : "1px solid var(--border)",
@@ -404,10 +458,32 @@ export default function AISettingsClient() {
                                     💻 Ollama Local
                                 </div>
                                 <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
-                                    Local AI — privacy-first, requires setup
+                                    Admin-only / Privacy-first local dev
                                 </div>
                             </button>
                         </div>
+                    </div>
+
+                    {/* Groq API Key */}
+                    <div style={{ gridColumn: "1 / -1" }}>
+                        <label className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <Key size={12} /> Groq API Key
+                        </label>
+                        <input
+                            className="input"
+                            type="password"
+                            placeholder="Enter your Groq API key..."
+                            value={settings.groqApiKey || ""}
+                            onChange={(e) => setSettings(p => ({ ...p, groqApiKey: e.target.value }))}
+                        />
+                        <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                            Get a free API key at{" "}
+                            <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer"
+                                style={{ color: "#a78bfa", textDecoration: "underline" }}>
+                                console.groq.com/keys
+                            </a>.
+                            Never exposed to the frontend — uses secure backend proxy.
+                        </p>
                     </div>
 
                     {/* Gemini API Key */}
@@ -423,13 +499,25 @@ export default function AISettingsClient() {
                             onChange={(e) => setSettings(p => ({ ...p, geminiApiKey: e.target.value }))}
                         />
                         <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
-                            Get a free API key at{" "}
-                            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"
-                                style={{ color: "#a78bfa", textDecoration: "underline" }}>
-                                aistudio.google.com/apikey
-                            </a>.
-                            Free tier: 1,500 requests/day.
+                            Backup Cloud Provider. Free tier: 1,500 requests/day.
                         </p>
+                    </div>
+
+                    {/* Groq Model Selection */}
+                    <div>
+                        <label className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <Cloud size={12} /> Groq Model
+                        </label>
+                        <select
+                            className="input"
+                            value={settings.groqModel || "llama3-8b-8192"}
+                            onChange={(e) => setSettings(p => ({ ...p, groqModel: e.target.value }))}
+                        >
+                            <option value="llama3-8b-8192">LLaMA 3 (8B) - Ultra Fast</option>
+                            <option value="llama3-70b-8192">LLaMA 3 (70B) - Deep Thinking</option>
+                            <option value="mixtral-8x7b-32768">Mixtral 8x7B - Large Context</option>
+                            <option value="gemma-7b-it">Gemma 7B (Groq)</option>
+                        </select>
                     </div>
 
                     {/* Gemini Model Selection */}

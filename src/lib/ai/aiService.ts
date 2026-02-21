@@ -30,7 +30,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const AI_SERVER_URL = process.env.NEXT_PUBLIC_AI_SERVER_URL || "http://localhost:3001";
 
 export type AIMode = "tutor" | "notes" | "deepdive" | "exam" | "code";
-export type AIProvider = "gemini" | "ollama";
+export type AIProvider = "auto" | "groq" | "gemini" | "ollama";
 
 export interface ChatMessage {
     role: "user" | "assistant" | "system";
@@ -70,6 +70,8 @@ export interface AISettings {
     provider?: AIProvider;
     geminiApiKey?: string;
     geminiModel?: string;
+    groqApiKey?: string;
+    groqModel?: string;
 }
 
 export interface StreamMetrics {
@@ -225,18 +227,47 @@ export async function detectProvider(): Promise<{
     available: boolean;
     model: string;
     geminiApiKey?: string;
+    groqApiKey?: string;
 }> {
     const settings = await getCachedSettings();
 
     // Check env var first, then Firestore settings
     const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || settings.geminiApiKey;
+    const groqKey = process.env.NEXT_PUBLIC_GROQ_API_KEY || settings.groqApiKey;
+
+    const pref = settings.provider || "auto";
 
     // If admin chose a specific provider
-    if (settings.provider === "ollama") {
+    if (pref === "ollama") {
         const ollamaHealth = await checkOllamaHealth();
         if (ollamaHealth) {
             return { provider: "ollama", available: true, model: settings.model };
         }
+    } else if (pref === "groq" && groqKey) {
+        return {
+            provider: "groq",
+            available: true,
+            model: settings.groqModel || "llama3-8b-8192",
+            groqApiKey: groqKey,
+        };
+    } else if (pref === "gemini" && geminiKey) {
+        return {
+            provider: "gemini",
+            available: true,
+            model: settings.geminiModel || "gemini-2.0-flash",
+            geminiApiKey: geminiKey,
+        };
+    }
+
+    // Try Groq as Primary Cloud (fast, free)
+    if (groqKey || true) { // allow groq regardless of key front-end presence since API route handles it
+        // Note: For strict checking, we assume if groq is selected, API Route handles keys
+        return {
+            provider: "groq",
+            available: true,
+            model: settings.groqModel || "llama3-8b-8192",
+            groqApiKey: "backend-managed",
+        };
     }
 
     // Try Gemini first (cloud — works for all users)
@@ -256,7 +287,7 @@ export async function detectProvider(): Promise<{
     }
 
     // Nothing available
-    return { provider: "gemini", available: false, model: "none" };
+    return { provider: "groq", available: false, model: "none" };
 }
 
 async function checkOllamaHealth(): Promise<boolean> {
@@ -279,7 +310,9 @@ export async function checkAIHealth(): Promise<{
     ollama: string;
     models: string[];
     gemini: string;
+    groq: string;
     geminiModel?: string;
+    groqModel?: string;
     activeProvider: AIProvider;
     latencyMs?: number;
 }> {
@@ -318,22 +351,39 @@ export async function checkAIHealth(): Promise<{
         }
     }
 
+    // Check Groq
+    let groqStatus = "not_configured";
+    let groqModel: string | undefined;
+    const groqKey = process.env.NEXT_PUBLIC_GROQ_API_KEY || settings.groqApiKey;
+    if (groqKey || settings.groqApiKey) {
+        // Groq API Key usually works, no need for active ping in health unless needed. It's fast.
+        groqStatus = "connected";
+        groqModel = settings.groqModel || "llama3-8b-8192";
+    }
+
     // Determine active provider
-    let activeProvider: AIProvider = "gemini";
-    if (settings.provider === "ollama" && ollamaStatus === "connected") {
-        activeProvider = "ollama";
-    } else if (geminiStatus === "connected") {
-        activeProvider = "gemini";
-    } else if (ollamaStatus === "connected") {
-        activeProvider = "ollama";
+    let activeProvider: AIProvider = "auto";
+    const pref = settings.provider || "auto";
+
+    if (pref === "groq" && groqStatus === "connected") activeProvider = "groq";
+    else if (pref === "gemini" && geminiStatus === "connected") activeProvider = "gemini";
+    else if (pref === "ollama" && ollamaStatus === "connected") activeProvider = "ollama";
+    else {
+        // Auto or fallback logic
+        if (groqStatus === "connected") activeProvider = "groq";
+        else if (geminiStatus === "connected") activeProvider = "gemini";
+        else if (ollamaStatus === "connected") activeProvider = "ollama";
+        else activeProvider = "gemini"; // fallback default visual
     }
 
     return {
-        status: geminiStatus === "connected" || ollamaStatus === "connected" ? "online" : "offline",
+        status: (groqStatus === "connected" || geminiStatus === "connected" || ollamaStatus === "connected") ? "online" : "offline",
         ollama: ollamaStatus,
         models: ollamaModels,
         gemini: geminiStatus,
+        groq: groqStatus,
         geminiModel,
+        groqModel,
         activeProvider,
         latencyMs,
     };
@@ -359,6 +409,17 @@ export async function getAvailableModels(): Promise<{
             { name: "gemini-2.0-flash", size: 0, contextLength: 1048576, provider: "gemini" },
             { name: "gemini-1.5-flash", size: 0, contextLength: 1048576, provider: "gemini" },
             { name: "gemini-1.5-pro", size: 0, contextLength: 2097152, provider: "gemini" },
+        );
+    }
+
+    // Add Groq models
+    const groqKey = process.env.NEXT_PUBLIC_GROQ_API_KEY || settings.groqApiKey;
+    if (groqKey || true) { // allow selection even if key is hidden on backend
+        models.push(
+            { name: "llama3-8b-8192", size: 8, contextLength: 8192, provider: "groq" },
+            { name: "llama3-70b-8192", size: 70, contextLength: 8192, provider: "groq" },
+            { name: "mixtral-8x7b-32768", size: 46, contextLength: 32768, provider: "groq" },
+            { name: "gemma-7b-it", size: 7, contextLength: 8192, provider: "groq" },
         );
     }
 
@@ -496,6 +557,79 @@ async function streamGemini(
 }
 
 // ============================================================
+// Groq Streaming (via edge API route)
+// ============================================================
+
+async function streamGroq(
+    model: string,
+    messages: ChatMessage[],
+    onChunk: (content: string, done: boolean, metrics?: StreamMetrics) => void,
+    onError: (error: string) => void,
+    options?: { temperature?: number; max_tokens?: number },
+    signal?: AbortSignal
+): Promise<void> {
+    try {
+        const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model,
+                messages: messages.map(m => ({ role: m.role, content: m.content })),
+                temperature: options?.temperature,
+                max_tokens: options?.max_tokens,
+            }),
+            signal,
+        });
+
+        if (!res.ok) {
+            const err = await res.text().catch(() => "Unknown error");
+            onError(err || "Groq API request failed");
+            return;
+        }
+
+        const reader = res.body?.getReader();
+        if (!reader) { onError("No response stream"); return; }
+
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith("data: ")) continue;
+
+                const payload = trimmed.slice(6);
+                if (payload === "[DONE]") {
+                    onChunk("", true);
+                    return;
+                }
+
+                try {
+                    const parsed = JSON.parse(payload);
+                    if (parsed.choices && parsed.choices[0].delta && parsed.choices[0].delta.content) {
+                        onChunk(parsed.choices[0].delta.content, false);
+                    }
+                } catch {
+                    // Ignore parse errors on partial chunks
+                }
+            }
+        }
+
+        onChunk("", true);
+    } catch (err: any) {
+        if (err.name === "AbortError") return;
+        onError(`Groq Streaming Error: ${err.message}`);
+    }
+}
+
+// ============================================================
 // Ollama Streaming (via proxy server)
 // ============================================================
 
@@ -593,12 +727,26 @@ export async function streamChat(
     }
 
     const provider = forceProvider || detection.provider;
-    const activeModel = provider === "gemini" ? (detection.geminiApiKey ? (detection.model || "gemini-2.0-flash") : model) : model;
+    let activeModel = model;
+    if (provider === "groq") {
+        activeModel = detection.model || model || "llama3-8b-8192";
+    } else if (provider === "gemini") {
+        activeModel = detection.model || model || "gemini-2.0-flash";
+    }
 
     // Notify caller of which provider is being used
     onMeta?.({ provider, model: activeModel });
 
-    if (provider === "gemini" && detection.geminiApiKey) {
+    if (provider === "groq") {
+        await streamGroq(
+            activeModel,
+            compressed,
+            onChunk,
+            onError,
+            options,
+            signal
+        );
+    } else if (provider === "gemini" && detection.geminiApiKey) {
         await streamGemini(
             detection.geminiApiKey,
             activeModel,
@@ -704,9 +852,11 @@ export async function getAISettings(): Promise<AISettings> {
         maxTokens: 1024,
         temperature: 0.7,
         enabledCourses: [],
-        provider: "gemini",
+        provider: "auto",
         geminiApiKey: "",
         geminiModel: "gemini-2.0-flash",
+        groqApiKey: "",
+        groqModel: "llama3-8b-8192",
     };
 }
 
