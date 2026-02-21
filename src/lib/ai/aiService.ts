@@ -1,13 +1,11 @@
 /**
- * Luxaar AI Service Client v2.0 — Ultra-Premium Edition
+ * Luxaar AI Service Client v3.0 — Cloud + Local Edition
  * 
- * Handles communication with the Luxaar AI proxy server.
- * Features:
- *   - Token-by-token streaming with performance metrics
- *   - Smart prompt compression
- *   - Multi-model support with warm-up
- *   - Context length optimization
- *   - Firestore-based chat memory
+ * Dual-provider AI service:
+ *   - Google Gemini (cloud) — works for all users, free tier
+ *   - Ollama (local) — works for local development
+ *   
+ * Auto-fallback: Gemini → Ollama → Error
  */
 
 import { db } from "@/lib/firebase/client";
@@ -23,6 +21,7 @@ import {
     orderBy,
     limit,
 } from "firebase/firestore";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ============================================================
 // Config
@@ -31,6 +30,7 @@ import {
 const AI_SERVER_URL = process.env.NEXT_PUBLIC_AI_SERVER_URL || "http://localhost:3001";
 
 export type AIMode = "tutor" | "notes" | "deepdive" | "exam" | "code";
+export type AIProvider = "gemini" | "ollama";
 
 export interface ChatMessage {
     role: "user" | "assistant" | "system";
@@ -67,6 +67,9 @@ export interface AISettings {
     maxTokens: number;
     temperature: number;
     enabledCourses: string[];
+    provider?: AIProvider;
+    geminiApiKey?: string;
+    geminiModel?: string;
 }
 
 export interface StreamMetrics {
@@ -75,6 +78,7 @@ export interface StreamMetrics {
     timeToFirstTokenMs: number;
     tokensPerSecond: number;
     model: string;
+    provider?: AIProvider;
     contextOptimized?: boolean;
 }
 
@@ -140,45 +144,33 @@ export const MODE_LABELS: Record<AIMode, { label: string; emoji: string; desc: s
 // Smart Prompt Compression
 // ============================================================
 
-/**
- * Compresses conversation history to reduce token usage.
- * Keeps the most recent messages and summarizes older ones.
- */
 export function compressMessages(messages: ChatMessage[], maxMessages = 10): ChatMessage[] {
     if (messages.length <= maxMessages) return messages;
 
     const systemMsgs = messages.filter(m => m.role === "system");
     const nonSystem = messages.filter(m => m.role !== "system");
 
-    // Keep last N messages
     const recent = nonSystem.slice(-maxMessages);
-
-    // Summarize older messages
     const olderCount = nonSystem.length - maxMessages;
     if (olderCount > 0) {
         const compressionNote: ChatMessage = {
             role: "system",
-            content: `[Context: ${olderCount} earlier messages omitted. The student has been asking about topics in this course. Continue the conversation naturally based on the recent messages below.]`,
+            content: `[Context: ${olderCount} earlier messages omitted. Continue naturally based on recent messages below.]`,
         };
         return [...systemMsgs, compressionNote, ...recent];
     }
-
     return [...systemMsgs, ...recent];
 }
 
-/**
- * Strips unnecessary whitespace and redundant content from prompts.
- */
 export function compressPrompt(prompt: string): string {
     return prompt
-        .replace(/\n{3,}/g, "\n\n")      // Collapse multiple newlines
-        .replace(/[ \t]{2,}/g, " ")       // Collapse multiple spaces
-        .replace(/^\s+/gm, "")            // Remove leading whitespace per line (but preserve markdown)
+        .replace(/\n{3,}/g, "\n\n")
+        .replace(/[ \t]{2,}/g, " ")
         .trim();
 }
 
 // ============================================================
-// Build System Prompt (Enhanced)
+// Build System Prompt
 // ============================================================
 
 export function buildSystemPrompt(mode: AIMode, context?: CourseContext): string {
@@ -199,7 +191,6 @@ export function buildSystemPrompt(mode: AIMode, context?: CourseContext): string
         if (context.lessonTitle) prompt += `\nLesson: ${context.lessonTitle}`;
         if (context.lessonDescription) prompt += `\nDescription: ${context.lessonDescription}`;
         if (context.instructorNotes) {
-            // Compress instructor notes if too long
             const notes = context.instructorNotes.length > 1500
                 ? context.instructorNotes.substring(0, 1500) + "...[truncated]"
                 : context.instructorNotes;
@@ -212,52 +203,181 @@ export function buildSystemPrompt(mode: AIMode, context?: CourseContext): string
 }
 
 // ============================================================
-// Health Check (Enhanced)
+// Provider Detection
+// ============================================================
+
+let _cachedSettings: AISettings | null = null;
+let _settingsCacheTime = 0;
+
+async function getCachedSettings(): Promise<AISettings> {
+    const now = Date.now();
+    if (_cachedSettings && now - _settingsCacheTime < 30000) {
+        return _cachedSettings;
+    }
+    const settings = await getAISettings();
+    _cachedSettings = settings;
+    _settingsCacheTime = now;
+    return settings;
+}
+
+export async function detectProvider(): Promise<{
+    provider: AIProvider;
+    available: boolean;
+    model: string;
+    geminiApiKey?: string;
+}> {
+    const settings = await getCachedSettings();
+
+    // Check env var first, then Firestore settings
+    const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || settings.geminiApiKey;
+
+    // If admin chose a specific provider
+    if (settings.provider === "ollama") {
+        const ollamaHealth = await checkOllamaHealth();
+        if (ollamaHealth) {
+            return { provider: "ollama", available: true, model: settings.model };
+        }
+    }
+
+    // Try Gemini first (cloud — works for all users)
+    if (geminiKey) {
+        return {
+            provider: "gemini",
+            available: true,
+            model: settings.geminiModel || "gemini-2.0-flash",
+            geminiApiKey: geminiKey,
+        };
+    }
+
+    // Fall back to Ollama (local)
+    const ollamaHealth = await checkOllamaHealth();
+    if (ollamaHealth) {
+        return { provider: "ollama", available: true, model: settings.model };
+    }
+
+    // Nothing available
+    return { provider: "gemini", available: false, model: "none" };
+}
+
+async function checkOllamaHealth(): Promise<boolean> {
+    try {
+        const res = await fetch(`${AI_SERVER_URL}/health`, { signal: AbortSignal.timeout(3000) });
+        if (!res.ok) return false;
+        const data = await res.json();
+        return data.ollama === "connected";
+    } catch {
+        return false;
+    }
+}
+
+// ============================================================
+// Health Check (Enhanced — checks both providers)
 // ============================================================
 
 export async function checkAIHealth(): Promise<{
     status: string;
     ollama: string;
     models: string[];
+    gemini: string;
+    geminiModel?: string;
+    activeProvider: AIProvider;
     latencyMs?: number;
-    stats?: {
-        totalRequests: number;
-        totalTokens: number;
-        avgResponseTimeMs: number;
-        activeRequests: number;
-        queuedRequests: number;
-    };
 }> {
+    const settings = await getCachedSettings();
+    const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || settings.geminiApiKey;
+
+    let ollamaStatus = "disconnected";
+    let ollamaModels: string[] = [];
+    let latencyMs: number | undefined;
+
+    // Check Ollama
     try {
-        const res = await fetch(`${AI_SERVER_URL}/health`, { signal: AbortSignal.timeout(5000) });
-        if (!res.ok) throw new Error("Server unreachable");
-        return await res.json();
-    } catch {
-        return { status: "offline", ollama: "disconnected", models: [] };
+        const start = Date.now();
+        const res = await fetch(`${AI_SERVER_URL}/health`, { signal: AbortSignal.timeout(3000) });
+        latencyMs = Date.now() - start;
+        if (res.ok) {
+            const data = await res.json();
+            ollamaStatus = data.ollama || "disconnected";
+            ollamaModels = data.models || [];
+        }
+    } catch { /* offline */ }
+
+    // Check Gemini
+    let geminiStatus = "not_configured";
+    let geminiModel: string | undefined;
+    if (geminiKey) {
+        try {
+            const genAI = new GoogleGenerativeAI(geminiKey);
+            const model = genAI.getGenerativeModel({ model: settings.geminiModel || "gemini-2.0-flash" });
+            // Quick test — countTokens is fast and validates the key
+            await model.countTokens("test");
+            geminiStatus = "connected";
+            geminiModel = settings.geminiModel || "gemini-2.0-flash";
+        } catch (err: any) {
+            geminiStatus = err.message?.includes("API_KEY") ? "invalid_key" : "error";
+        }
     }
+
+    // Determine active provider
+    let activeProvider: AIProvider = "gemini";
+    if (settings.provider === "ollama" && ollamaStatus === "connected") {
+        activeProvider = "ollama";
+    } else if (geminiStatus === "connected") {
+        activeProvider = "gemini";
+    } else if (ollamaStatus === "connected") {
+        activeProvider = "ollama";
+    }
+
+    return {
+        status: geminiStatus === "connected" || ollamaStatus === "connected" ? "online" : "offline",
+        ollama: ollamaStatus,
+        models: ollamaModels,
+        gemini: geminiStatus,
+        geminiModel,
+        activeProvider,
+        latencyMs,
+    };
 }
 
 // ============================================================
-// Get Available Models (Enhanced)
+// Get Available Models
 // ============================================================
 
 export async function getAvailableModels(): Promise<{
     name: string;
     size: number;
     contextLength?: number;
+    provider?: AIProvider;
 }[]> {
-    try {
-        const res = await fetch(`${AI_SERVER_URL}/models`, { signal: AbortSignal.timeout(5000) });
-        if (!res.ok) throw new Error("Failed to fetch models");
-        const data = await res.json();
-        return data.models || [];
-    } catch {
-        return [];
+    const models: { name: string; size: number; contextLength?: number; provider?: AIProvider }[] = [];
+
+    // Add Gemini models (always available if key exists)
+    const settings = await getCachedSettings();
+    const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || settings.geminiApiKey;
+    if (geminiKey) {
+        models.push(
+            { name: "gemini-2.0-flash", size: 0, contextLength: 1048576, provider: "gemini" },
+            { name: "gemini-1.5-flash", size: 0, contextLength: 1048576, provider: "gemini" },
+            { name: "gemini-1.5-pro", size: 0, contextLength: 2097152, provider: "gemini" },
+        );
     }
+
+    // Add Ollama models
+    try {
+        const res = await fetch(`${AI_SERVER_URL}/models`, { signal: AbortSignal.timeout(3000) });
+        if (res.ok) {
+            const data = await res.json();
+            for (const m of (data.models || [])) {
+                models.push({ ...m, provider: "ollama" as AIProvider });
+            }
+        }
+    } catch { /* offline */ }
+
+    return models;
 }
 
 // ============================================================
-// Model Warm-up
+// Model Warm-up (Ollama only)
 // ============================================================
 
 export async function warmupModel(model: string): Promise<boolean> {
@@ -275,28 +395,116 @@ export async function warmupModel(model: string): Promise<boolean> {
 }
 
 // ============================================================
-// Streaming Chat v2.0 — Token-by-token with metrics
+// Google Gemini Streaming
 // ============================================================
 
-export async function streamChat(
+async function streamGemini(
+    apiKey: string,
+    modelName: string,
+    messages: ChatMessage[],
+    onChunk: (content: string, done: boolean, metrics?: StreamMetrics) => void,
+    onError: (error: string) => void,
+    options?: { temperature?: number; max_tokens?: number },
+    signal?: AbortSignal
+): Promise<void> {
+    const startTime = Date.now();
+    let tokenCount = 0;
+    let firstTokenTime: number | null = null;
+
+    try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+                temperature: options?.temperature ?? 0.7,
+                maxOutputTokens: options?.max_tokens ?? 1024,
+                topP: 0.9,
+            },
+        });
+
+        // Separate system prompt and conversation
+        const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+        const chatMessages = messages
+            .filter(m => m.role !== "system")
+            .map(m => ({
+                role: m.role === "assistant" ? "model" as const : "user" as const,
+                parts: [{ text: m.content }],
+            }));
+
+        // Get the last user message and prior history
+        const lastMsg = chatMessages.pop();
+        if (!lastMsg) {
+            onError("No message to send");
+            return;
+        }
+
+        const chat = model.startChat({
+            history: chatMessages,
+            systemInstruction: systemPrompt || undefined,
+        });
+
+        // Stream response
+        const result = await chat.sendMessageStream(lastMsg.parts[0].text);
+
+        for await (const chunk of result.stream) {
+            // Check for abort
+            if (signal?.aborted) return;
+
+            const text = chunk.text();
+            if (text) {
+                tokenCount++;
+                if (!firstTokenTime) firstTokenTime = Date.now();
+                onChunk(text, false);
+            }
+        }
+
+        // Done
+        const totalDuration = Date.now() - startTime;
+        const metrics: StreamMetrics = {
+            totalTokens: tokenCount,
+            totalDurationMs: totalDuration,
+            timeToFirstTokenMs: firstTokenTime ? firstTokenTime - startTime : 0,
+            tokensPerSecond: tokenCount > 0 ? Math.round(tokenCount / (totalDuration / 1000)) : 0,
+            model: modelName,
+            provider: "gemini",
+        };
+        onChunk("", true, metrics);
+    } catch (err: any) {
+        if (err.name === "AbortError") return;
+        if (signal?.aborted) return;
+
+        const errorMsg = err.message || "Gemini API error";
+        if (errorMsg.includes("API_KEY_INVALID") || errorMsg.includes("API key not valid")) {
+            onError("Invalid Gemini API key. Please check your settings.");
+        } else if (errorMsg.includes("RATE_LIMIT") || errorMsg.includes("quota")) {
+            onError("Gemini rate limit reached. Please wait a moment and try again.");
+        } else if (errorMsg.includes("SAFETY")) {
+            onError("The response was blocked by safety filters. Try rephrasing your question.");
+        } else {
+            onError(`AI error: ${errorMsg}`);
+        }
+    }
+}
+
+// ============================================================
+// Ollama Streaming (via proxy server)
+// ============================================================
+
+async function streamOllama(
     model: string,
     messages: ChatMessage[],
     onChunk: (content: string, done: boolean, metrics?: StreamMetrics) => void,
     onError: (error: string) => void,
     options?: { temperature?: number; max_tokens?: number },
-    signal?: AbortSignal,
-    onMeta?: (meta: { type: string; estimatedInputTokens?: number; contextOptimized?: boolean }) => void
+    signal?: AbortSignal
 ): Promise<void> {
-    // Compress messages before sending
-    const compressed = compressMessages(messages, 12);
-
     try {
         const res = await fetch(`${AI_SERVER_URL}/chat`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 model,
-                messages: compressed.map(m => ({ role: m.role, content: m.content })),
+                messages: messages.map(m => ({ role: m.role, content: m.content })),
                 options,
             }),
             signal,
@@ -330,32 +538,76 @@ export async function streamChat(
                 try {
                     const parsed = JSON.parse(payload);
                     if (parsed.error) { onError(parsed.error); return; }
-
-                    // Handle different message types from v2 server
-                    if (parsed.type === "meta") {
-                        onMeta?.({
-                            type: "meta",
-                            estimatedInputTokens: parsed.estimatedInputTokens,
-                            contextOptimized: parsed.contextOptimized,
-                        });
-                    } else if (parsed.type === "token") {
+                    if (parsed.type === "token") {
                         onChunk(parsed.content || "", false);
                     } else if (parsed.type === "done") {
-                        onChunk("", true, parsed.metrics);
+                        onChunk("", true, parsed.metrics ? { ...parsed.metrics, provider: "ollama" } : undefined);
                     } else if (parsed.type === "error") {
                         onError(parsed.error || "Stream error");
-                    } else {
-                        // Backwards compatibility with v1 format
+                    } else if (parsed.type !== "meta") {
+                        // Backwards compat
                         onChunk(parsed.content || "", parsed.done || false);
                     }
                 } catch { /* skip */ }
             }
         }
-
         onChunk("", true);
     } catch (err: any) {
         if (err.name === "AbortError") return;
-        onError("AI is temporarily unavailable. Please ensure Ollama is running.");
+        onError("Ollama is unavailable. Please ensure it is running locally.");
+    }
+}
+
+// ============================================================
+// Unified Streaming Chat — Auto-selects provider
+// ============================================================
+
+export async function streamChat(
+    model: string,
+    messages: ChatMessage[],
+    onChunk: (content: string, done: boolean, metrics?: StreamMetrics) => void,
+    onError: (error: string) => void,
+    options?: { temperature?: number; max_tokens?: number },
+    signal?: AbortSignal,
+    onMeta?: (meta: { provider: AIProvider; model: string }) => void,
+    forceProvider?: AIProvider
+): Promise<void> {
+    // Compress messages
+    const compressed = compressMessages(messages, 12);
+
+    // Detect which provider to use
+    const detection = await detectProvider();
+
+    if (!detection.available) {
+        onError("No AI provider available. Configure Gemini API key or run Ollama locally.");
+        return;
+    }
+
+    const provider = forceProvider || detection.provider;
+    const activeModel = provider === "gemini" ? (detection.geminiApiKey ? (detection.model || "gemini-2.0-flash") : model) : model;
+
+    // Notify caller of which provider is being used
+    onMeta?.({ provider, model: activeModel });
+
+    if (provider === "gemini" && detection.geminiApiKey) {
+        await streamGemini(
+            detection.geminiApiKey,
+            activeModel,
+            compressed,
+            onChunk,
+            onError,
+            options,
+            signal
+        );
+    } else {
+        await streamOllama(
+            activeModel,
+            compressed,
+            onChunk,
+            onError,
+            options,
+            signal
+        );
     }
 }
 
@@ -365,7 +617,6 @@ export async function streamChat(
 
 export async function saveChatSession(session: ChatSession): Promise<string> {
     try {
-        // Strip metrics from messages before saving (reduce Firestore size)
         const cleanMessages = session.messages.map(m => ({
             role: m.role,
             content: m.content,
@@ -444,10 +695,17 @@ export async function getAISettings(): Promise<AISettings> {
         maxTokens: 1024,
         temperature: 0.7,
         enabledCourses: [],
+        provider: "gemini",
+        geminiApiKey: "",
+        geminiModel: "gemini-2.0-flash",
     };
 }
 
 export async function saveAISettings(settings: AISettings): Promise<void> {
+    // Clear the cache when settings are saved
+    _cachedSettings = null;
+    _settingsCacheTime = 0;
+
     try {
         const snap = await getDocs(collection(db, "ai_settings"));
         if (!snap.empty) {

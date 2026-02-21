@@ -5,13 +5,13 @@ import { motion } from "framer-motion";
 import {
     Bot, Save, RefreshCw, Trash2, Sparkles,
     Activity, Cpu, Thermometer, Hash, ToggleLeft, ToggleRight,
-    AlertCircle,
+    AlertCircle, Cloud, Server, Key,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
     checkAIHealth, getAvailableModels,
     getAISettings, saveAISettings,
-    type AISettings,
+    type AISettings, type AIProvider,
 } from "@/lib/ai/aiService";
 import { collection, getDocs, query, where, deleteDoc, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase/client";
@@ -19,18 +19,22 @@ import { db } from "@/lib/firebase/client";
 export default function AISettingsClient() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [health, setHealth] = useState<{ status: string; ollama: string; models: string[] }>({
+    const [health, setHealth] = useState<{ status: string; ollama: string; models: string[]; gemini?: string; geminiModel?: string; activeProvider?: AIProvider }>({
         status: "unknown",
         ollama: "unknown",
         models: [],
+        gemini: "unknown",
     });
-    const [availableModels, setAvailableModels] = useState<{ name: string; size: number }[]>([]);
+    const [availableModels, setAvailableModels] = useState<{ name: string; size: number; provider?: string }[]>([]);
     const [settings, setSettings] = useState<AISettings>({
         enabled: true,
         model: "llama3",
         maxTokens: 1024,
         temperature: 0.7,
         enabledCourses: [],
+        provider: "gemini",
+        geminiApiKey: "",
+        geminiModel: "gemini-2.0-flash",
     });
     const [chatStats, setChatStats] = useState({ totalChats: 0, totalMessages: 0 });
     const [clearingHistory, setClearingHistory] = useState(false);
@@ -145,7 +149,7 @@ export default function AISettingsClient() {
                     Luxaar AI Settings
                 </h1>
                 <p style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-                    Configure the AI tutor powered by Ollama.
+                    Configure the AI tutor — now powered by Google Gemini Cloud + Ollama Local.
                 </p>
             </motion.div>
 
@@ -189,37 +193,38 @@ export default function AISettingsClient() {
                             </span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Ollama Engine</span>
+                            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>☁️ Gemini Cloud</span>
+                            <span style={{
+                                fontSize: 11, fontWeight: 600,
+                                padding: "2px 10px", borderRadius: 999,
+                                background: health.gemini === "connected" ? "rgba(74,222,128,0.1)" : health.gemini === "not_configured" ? "rgba(251,191,36,0.1)" : "rgba(248,113,113,0.1)",
+                                color: health.gemini === "connected" ? "#4ade80" : health.gemini === "not_configured" ? "#fbbf24" : "#f87171",
+                            }}>
+                                {health.gemini === "connected" ? "Connected" : health.gemini === "not_configured" ? "No API Key" : health.gemini === "invalid_key" ? "Invalid Key" : "Error"}
+                            </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>💻 Ollama Local</span>
                             <span style={{
                                 fontSize: 11, fontWeight: 600,
                                 padding: "2px 10px", borderRadius: 999,
                                 background: health.ollama === "connected" ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)",
                                 color: health.ollama === "connected" ? "#4ade80" : "#f87171",
                             }}>
-                                {health.ollama === "connected" ? "Connected" : "Disconnected"}
+                                {health.ollama === "connected" ? "Connected" : "Offline"}
                             </span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Available Models</span>
-                            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                                {health.models?.length || 0} models
+                            <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Active Provider</span>
+                            <span style={{
+                                fontSize: 11, fontWeight: 600,
+                                padding: "2px 10px", borderRadius: 999,
+                                background: "rgba(124,58,237,0.1)",
+                                color: "#a78bfa",
+                            }}>
+                                {health.activeProvider === "gemini" ? "☁️ Gemini Cloud" : "💻 Ollama Local"}
                             </span>
                         </div>
-                        {health.models && health.models.length > 0 && (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                                {health.models.map((m) => (
-                                    <span key={m} style={{
-                                        fontSize: 10, fontWeight: 600,
-                                        padding: "2px 8px", borderRadius: 999,
-                                        background: "rgba(124,58,237,0.1)",
-                                        color: "#a78bfa",
-                                        border: "1px solid rgba(124,58,237,0.2)",
-                                    }}>
-                                        {m}
-                                    </span>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 </motion.div>
 
@@ -348,17 +353,112 @@ export default function AISettingsClient() {
                         </label>
                     </div>
 
-                    {/* Model Selection */}
+                    {/* Provider Selection */}
+                    <div style={{ gridColumn: "1 / -1" }}>
+                        <label className="label" style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                            <Cloud size={12} /> AI Provider
+                        </label>
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                                onClick={() => setSettings(p => ({ ...p, provider: "gemini" }))}
+                                style={{
+                                    flex: 1, padding: "12px 16px", borderRadius: 12,
+                                    border: settings.provider === "gemini"
+                                        ? "2px solid #7c3aed"
+                                        : "1px solid var(--border)",
+                                    background: settings.provider === "gemini"
+                                        ? "rgba(124,58,237,0.08)"
+                                        : "var(--bg-secondary)",
+                                    cursor: "pointer",
+                                    textAlign: "left",
+                                }}
+                            >
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
+                                    ☁️ Google Gemini
+                                    <span style={{
+                                        fontSize: 9, fontWeight: 700,
+                                        padding: "1px 6px", borderRadius: 4,
+                                        background: "rgba(74,222,128,0.15)",
+                                        color: "#4ade80",
+                                    }}>RECOMMENDED</span>
+                                </div>
+                                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                                    Cloud AI — works for all users, free tier
+                                </div>
+                            </button>
+                            <button
+                                onClick={() => setSettings(p => ({ ...p, provider: "ollama" }))}
+                                style={{
+                                    flex: 1, padding: "12px 16px", borderRadius: 12,
+                                    border: settings.provider === "ollama"
+                                        ? "2px solid #7c3aed"
+                                        : "1px solid var(--border)",
+                                    background: settings.provider === "ollama"
+                                        ? "rgba(124,58,237,0.08)"
+                                        : "var(--bg-secondary)",
+                                    cursor: "pointer",
+                                    textAlign: "left",
+                                }}
+                            >
+                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
+                                    💻 Ollama Local
+                                </div>
+                                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>
+                                    Local AI — privacy-first, requires setup
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Gemini API Key */}
+                    <div style={{ gridColumn: "1 / -1" }}>
+                        <label className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <Key size={12} /> Gemini API Key
+                        </label>
+                        <input
+                            className="input"
+                            type="password"
+                            placeholder="Enter your Google Gemini API key..."
+                            value={settings.geminiApiKey || ""}
+                            onChange={(e) => setSettings(p => ({ ...p, geminiApiKey: e.target.value }))}
+                        />
+                        <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+                            Get a free API key at{" "}
+                            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"
+                                style={{ color: "#a78bfa", textDecoration: "underline" }}>
+                                aistudio.google.com/apikey
+                            </a>.
+                            Free tier: 1,500 requests/day.
+                        </p>
+                    </div>
+
+                    {/* Gemini Model Selection */}
                     <div>
                         <label className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <Bot size={12} /> AI Model
+                            <Cloud size={12} /> Gemini Model
+                        </label>
+                        <select
+                            className="input"
+                            value={settings.geminiModel || "gemini-2.0-flash"}
+                            onChange={(e) => setSettings(p => ({ ...p, geminiModel: e.target.value }))}
+                        >
+                            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fastest)</option>
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Fast)</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Best Quality)</option>
+                        </select>
+                    </div>
+
+                    {/* Ollama Model Selection */}
+                    <div>
+                        <label className="label" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <Server size={12} /> Ollama Model (Local)
                         </label>
                         <select
                             className="input"
                             value={settings.model}
                             onChange={(e) => setSettings(p => ({ ...p, model: e.target.value }))}
                         >
-                            <option value="llama3">LLaMA 3 (Recommended)</option>
+                            <option value="llama3">LLaMA 3</option>
                             <option value="llama3.1">LLaMA 3.1</option>
                             <option value="llama3.2">LLaMA 3.2</option>
                             <option value="mistral">Mistral</option>
@@ -367,7 +467,7 @@ export default function AISettingsClient() {
                             <option value="gemma2">Gemma 2</option>
                             <option value="qwen2">Qwen 2</option>
                             {availableModels
-                                .filter(m => !["llama3", "llama3.1", "llama3.2", "mistral", "mixtral", "phi3", "gemma2", "qwen2"].includes(m.name.split(":")[0]))
+                                .filter(m => m.provider === "ollama" && !["llama3", "llama3.1", "llama3.2", "mistral", "mixtral", "phi3", "gemma2", "qwen2"].includes(m.name.split(":")[0]))
                                 .map(m => (
                                     <option key={m.name} value={m.name}>
                                         {m.name} (Local)
@@ -447,60 +547,30 @@ export default function AISettingsClient() {
                     lineHeight: 1.8,
                     color: "var(--text-secondary)",
                 }}>
-                    <div style={{ marginBottom: 12 }}>
-                        <strong style={{ color: "var(--text-primary)" }}>1. Install Ollama</strong>
-                        <div style={{
-                            background: "rgba(0,0,0,0.3)",
-                            padding: "8px 12px",
-                            borderRadius: 8,
-                            fontFamily: "monospace",
-                            fontSize: 12,
-                            marginTop: 4,
-                            color: "#a78bfa",
-                        }}>
-                            curl -fsSL https://ollama.com/install.sh | sh
+                    <div style={{
+                        padding: "10px 14px", borderRadius: 10, marginBottom: 12,
+                        background: "rgba(74,222,128,0.05)",
+                        border: "1px solid rgba(74,222,128,0.15)",
+                    }}>
+                        <strong style={{ color: "#4ade80" }}>☁️ Option A: Google Gemini (Recommended — Cloud)</strong>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+                            1. Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa", textDecoration: "underline" }}>aistudio.google.com/apikey</a><br />
+                            2. Click "Create API Key" (free, no credit card needed)<br />
+                            3. Paste the key in the "Gemini API Key" field above<br />
+                            4. Click Save — the chatbot works for all users instantly!
                         </div>
                     </div>
-                    <div style={{ marginBottom: 12 }}>
-                        <strong style={{ color: "var(--text-primary)" }}>2. Pull a model</strong>
-                        <div style={{
-                            background: "rgba(0,0,0,0.3)",
-                            padding: "8px 12px",
-                            borderRadius: 8,
-                            fontFamily: "monospace",
-                            fontSize: 12,
-                            marginTop: 4,
-                            color: "#a78bfa",
-                        }}>
-                            ollama pull llama3
-                        </div>
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                        <strong style={{ color: "var(--text-primary)" }}>3. Start Ollama</strong>
-                        <div style={{
-                            background: "rgba(0,0,0,0.3)",
-                            padding: "8px 12px",
-                            borderRadius: 8,
-                            fontFamily: "monospace",
-                            fontSize: 12,
-                            marginTop: 4,
-                            color: "#a78bfa",
-                        }}>
-                            ollama serve
-                        </div>
-                    </div>
-                    <div>
-                        <strong style={{ color: "var(--text-primary)" }}>4. Start AI Proxy Server</strong>
-                        <div style={{
-                            background: "rgba(0,0,0,0.3)",
-                            padding: "8px 12px",
-                            borderRadius: 8,
-                            fontFamily: "monospace",
-                            fontSize: 12,
-                            marginTop: 4,
-                            color: "#a78bfa",
-                        }}>
-                            cd server && npm install && npm start
+                    <div style={{
+                        padding: "10px 14px", borderRadius: 10,
+                        background: "rgba(124,58,237,0.05)",
+                        border: "1px solid rgba(124,58,237,0.15)",
+                    }}>
+                        <strong style={{ color: "#a78bfa" }}>💻 Option B: Ollama (Advanced — Local Only)</strong>
+                        <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+                            1. Install Ollama: <code style={{ color: "#a78bfa" }}>curl -fsSL https://ollama.com/install.sh | sh</code><br />
+                            2. Pull a model: <code style={{ color: "#a78bfa" }}>ollama pull llama3</code><br />
+                            3. Start Ollama: <code style={{ color: "#a78bfa" }}>ollama serve</code><br />
+                            4. Start proxy: <code style={{ color: "#a78bfa" }}>cd server && npm install && npm start</code>
                         </div>
                     </div>
                 </div>
