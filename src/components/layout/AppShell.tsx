@@ -51,6 +51,7 @@ const adminNav = [
     { href: "/dashboard/admin/enrollments", icon: ClipboardList, label: "Access Requests" },
     { href: "/dashboard/admin/analytics", icon: BarChart3, label: "Analytics" },
     { href: "/dashboard/admin/support", icon: MessageSquare, label: "Support Messages" },
+    { href: "/dashboard/admin/ai-settings", icon: Sparkles, label: "AI Settings" },
 ];
 
 export default function AppShell({ children, profile }: AppShellProps) {
@@ -750,6 +751,8 @@ export default function AppShell({ children, profile }: AppShellProps) {
                                                                     <CheckCircle size={14} color={notif.is_read ? "var(--text-muted)" : "#4ade80"} />
                                                                 ) : notif.type === "new_lesson" ? (
                                                                     <PlayCircle size={14} color={notif.is_read ? "var(--text-muted)" : "#c9a84c"} />
+                                                                ) : notif.type === "support_reply" ? (
+                                                                    <MessageSquare size={14} color={notif.is_read ? "var(--text-muted)" : "#3b82f6"} />
                                                                 ) : (
                                                                     <Sparkles size={14} color={notif.is_read ? "var(--text-muted)" : "#c9a84c"} />
                                                                 )}

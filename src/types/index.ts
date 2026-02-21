@@ -112,7 +112,7 @@ export interface LessonProgress {
 export interface Notification {
     id: string;
     user_id: string;
-    type: "enrollment_approved" | "new_lesson" | "course_update" | "course_completed" | "announcement";
+    type: "enrollment_approved" | "new_lesson" | "course_update" | "course_completed" | "announcement" | "support_reply";
     title: string;
     message: string;
     course_id?: string;

@@ -36,7 +36,15 @@ export function getInitials(name: string | null): string {
 export function getVideoEmbedUrl(url: string, type: string): string {
     if (!url) return "";
 
-    if (type === "google_drive") {
+    // Auto-detect type from URL if it doesn't match the stored type
+    let effectiveType = type;
+    if (url.includes('youtube.com') || url.includes('youtu.be')) effectiveType = 'youtube';
+    else if (url.includes('vimeo.com')) effectiveType = 'vimeo';
+    else if (url.includes('loom.com')) effectiveType = 'loom';
+    else if (url.includes('drive.google.com')) effectiveType = 'google_drive';
+    else if (url.includes('github.com') || url.includes('raw.githubusercontent.com')) effectiveType = 'github';
+
+    if (effectiveType === "google_drive") {
         // Check if it's already an embed URL
         if (url.includes("/preview")) return url;
 
@@ -47,7 +55,7 @@ export function getVideoEmbedUrl(url: string, type: string): string {
         }
     }
 
-    if (type === "youtube") {
+    if (effectiveType === "youtube") {
         if (url.includes("embed/")) return url;
 
         const videoIdMatch = url.match(
@@ -58,7 +66,7 @@ export function getVideoEmbedUrl(url: string, type: string): string {
         }
     }
 
-    if (type === "vimeo") {
+    if (effectiveType === "vimeo") {
         if (url.includes("player.vimeo.com")) return url;
 
         const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
@@ -67,14 +75,14 @@ export function getVideoEmbedUrl(url: string, type: string): string {
         }
     }
 
-    if (type === "loom") {
+    if (effectiveType === "loom") {
         if (url.includes("/embed/")) return url;
 
         // Convert share URL to embed: https://www.loom.com/share/xxx -> https://www.loom.com/embed/xxx
         return url.replace("/share/", "/embed/");
     }
 
-    if (type === "github") {
+    if (effectiveType === "github") {
         // Convert blob URLs to raw URLs for direct playback
         if (url.includes("github.com") && url.includes("/blob/")) {
             return url.replace("github.com", "raw.githubusercontent.com").replace("/blob/", "/");

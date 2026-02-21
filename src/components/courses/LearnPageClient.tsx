@@ -20,12 +20,14 @@ import {
     Play,
     Lock,
     MessageSquare,
+    HelpCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import dynamic from 'next/dynamic';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import LessonDiscussions from "./LessonDiscussions";
+import AIChatbot from "@/components/ai/AIChatbot";
 
 // Load ReactPlayer dynamically to avoid SSR issues
 const ReactPlayer = dynamic(() => import('react-player'), { ssr: false }) as any;
@@ -44,7 +46,7 @@ interface LearnPageClientProps {
     userEmail: string;
 }
 
-type Tab = "notes" | "resources" | "discussions";
+type Tab = "notes" | "resources" | "discussions" | "quiz";
 
 export default function LearnPageClient({
     course,
@@ -74,6 +76,7 @@ export default function LearnPageClient({
     );
 
     const [videoCompleted, setVideoCompleted] = useState(false);
+    const [hasWatchedVideo, setHasWatchedVideo] = useState(false);
     const [showConfetti, setShowConfetti] = useState(false);
     const [maxPlayed, setMaxPlayed] = useState(0);
     const playerRef = useRef<any>(null);
@@ -93,21 +96,42 @@ export default function LearnPageClient({
         ? Math.round((completedCount / allLessons.length) * 100)
         : 0;
 
+    let cleanedVideoUrl = currentLesson?.video_url?.trim() || "";
+    if (cleanedVideoUrl && !cleanedVideoUrl.startsWith('http://') && !cleanedVideoUrl.startsWith('https://')) {
+        cleanedVideoUrl = 'https://' + cleanedVideoUrl;
+    }
+
+    // Auto-detect video type from URL pattern (overrides stored video_type if URL doesn't match)
+    function detectVideoType(url: string, storedType: string): string {
+        if (!url) return storedType;
+        if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+        if (url.includes('vimeo.com')) return 'vimeo';
+        if (url.includes('loom.com')) return 'loom';
+        if (url.includes('drive.google.com')) return 'google_drive';
+        if (url.includes('github.com') || url.includes('raw.githubusercontent.com')) return 'github';
+        if (url.match(/\.(mp4|webm|ogg|mov)(\?|$)/i)) return 'direct';
+        return storedType;
+    }
+
+    const effectiveVideoType = currentLesson
+        ? detectVideoType(cleanedVideoUrl, currentLesson.video_type)
+        : '';
+
     // Determine if we can track progress (Check URL pattern first, then fall back to type)
     const isYouTubeOrVimeo = currentLesson?.video_url ?
-        (currentLesson.video_url.includes('youtube.com') ||
-            currentLesson.video_url.includes('youtu.be') ||
-            currentLesson.video_url.includes('vimeo.com')) : false;
+        (cleanedVideoUrl.includes('youtube.com') ||
+            cleanedVideoUrl.includes('youtu.be') ||
+            cleanedVideoUrl.includes('vimeo.com')) : false;
 
     const isTrackable = currentLesson ?
         isYouTubeOrVimeo ||
-        ["youtube", "vimeo", "video"].includes(currentLesson.video_type) ||
-        !["google_drive", "loom"].includes(currentLesson.video_type)
+        ["youtube", "vimeo", "video", "direct", "github"].includes(effectiveVideoType) ||
+        !["google_drive", "loom"].includes(effectiveVideoType)
         : false;
 
     // Helper to determine if we should use iframe fallback (Drive, Loom) - UNLESS it's actually YouTube/Vimeo
     const useIframeFallback = currentLesson ?
-        !isYouTubeOrVimeo && ["google_drive", "loom"].includes(currentLesson.video_type)
+        !isYouTubeOrVimeo && ["google_drive", "loom"].includes(effectiveVideoType)
         : false;
 
     // Reset video state when lesson changes
@@ -116,8 +140,12 @@ export default function LearnPageClient({
             const isCompleted = lessonProgress[currentLesson.id]?.completed || false;
             setVideoCompleted(isCompleted);
             setMaxPlayed(0); // Reset max played for new lesson
+            setHasWatchedVideo(false);
+            if (activeTab === "quiz" && !currentLesson.quiz_link) {
+                setActiveTab("notes");
+            }
         }
-    }, [currentLesson, lessonProgress]);
+    }, [currentLesson, lessonProgress, activeTab]);
 
     // Check for course completion animation
     useEffect(() => {
@@ -213,7 +241,13 @@ export default function LearnPageClient({
 
     const handleVideoEnded = () => {
         if (currentLesson && !lessonProgress[currentLesson.id]?.completed) {
-            markComplete(currentLesson.id);
+            if (currentLesson.quiz_link) {
+                setHasWatchedVideo(true);
+                toast.success("Video watched! Please take the quiz to complete this lesson.");
+                setActiveTab("quiz");
+            } else {
+                markComplete(currentLesson.id);
+            }
         }
     };
 
@@ -511,6 +545,26 @@ export default function LearnPageClient({
                                 <CheckCircle size={14} />
                                 <span>Completed</span>
                             </div>
+                        ) : currentLesson.quiz_link ? (
+                            <button
+                                className={(!isTrackable || hasWatchedVideo) ? "btn-primary" : "btn-secondary"}
+                                disabled={isTrackable && !hasWatchedVideo}
+                                onClick={() => markComplete(currentLesson.id)}
+                                style={{
+                                    fontSize: 12,
+                                    padding: "7px 14px",
+                                    flexShrink: 0,
+                                    opacity: (isTrackable && !hasWatchedVideo) ? 0.6 : 1,
+                                    cursor: (isTrackable && !hasWatchedVideo) ? "not-allowed" : "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6
+                                }}
+                                title={(isTrackable && !hasWatchedVideo) ? "Watch the full video first" : "Click to complete this lesson after finishing the quiz"}
+                            >
+                                {(isTrackable && !hasWatchedVideo) ? <Lock size={12} /> : <CheckCircle size={14} />}
+                                {(isTrackable && !hasWatchedVideo) ? "Watch Video First" : "Mark Lesson Complete"}
+                            </button>
                         ) : !isTrackable ? (
                             <button
                                 className="btn-primary"
@@ -559,23 +613,36 @@ export default function LearnPageClient({
                             {!useIframeFallback ? (
                                 <ReactPlayer
                                     ref={playerRef}
-                                    url={currentLesson.video_url}
+                                    url={cleanedVideoUrl}
                                     width="100%"
                                     height="100%"
                                     controls={true}
+                                    playing={false}
+                                    playsinline
                                     onEnded={handleVideoEnded}
                                     onProgress={handleProgress}
+                                    onError={(e: any) => {
+                                        console.error("ReactPlayer error:", e);
+                                    }}
                                     config={{
+                                        youtube: {
+                                            playerVars: {
+                                                modestbranding: 1,
+                                                rel: 0,
+                                                showinfo: 0,
+                                            }
+                                        },
                                         file: {
                                             attributes: {
-                                                controlsList: 'nodownload'
+                                                controlsList: 'nodownload',
+                                                crossOrigin: 'anonymous',
                                             }
                                         }
                                     }}
                                 />
                             ) : (
                                 <iframe
-                                    src={getVideoEmbedUrl(currentLesson.video_url, currentLesson.video_type)}
+                                    src={getVideoEmbedUrl(cleanedVideoUrl, effectiveVideoType)}
                                     allow="autoplay; fullscreen; picture-in-picture"
                                     allowFullScreen
                                     title={currentLesson.title}
@@ -634,7 +701,7 @@ export default function LearnPageClient({
                                 marginBottom: 20,
                             }}
                         >
-                            {(["notes", "resources", "discussions"] as Tab[]).map((tab) => (
+                            {(["notes", "resources", "discussions", ...(currentLesson.quiz_link ? ["quiz"] : [])] as Tab[]).map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab)}
@@ -654,7 +721,7 @@ export default function LearnPageClient({
                                         transition: "all 0.2s",
                                     }}
                                 >
-                                    {tab === "notes" ? <FileText size={14} /> : tab === "resources" ? <Download size={14} /> : <MessageSquare size={14} />}
+                                    {tab === "notes" ? <FileText size={14} /> : tab === "resources" ? <Download size={14} /> : tab === "quiz" ? <HelpCircle size={14} /> : <MessageSquare size={14} />}
                                     {tab}
                                 </button>
                             ))}
@@ -723,6 +790,56 @@ export default function LearnPageClient({
                                 <LessonDiscussions lessonId={currentLesson.id} courseId={course.id} />
                             </div>
                         )}
+
+                        {activeTab === "quiz" && currentLesson.quiz_link && (
+                            <div className="card" style={{ overflow: "hidden", display: "flex", flexDirection: "column", height: 700 }}>
+                                <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-secondary)" }}>
+                                    <div>
+                                        <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>Lesson Quiz</h3>
+                                        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>Test your knowledge on this topic.</p>
+                                    </div>
+                                    <a
+                                        href={currentLesson.quiz_link}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ textDecoration: "none" }}
+                                    >
+                                        <button className="btn-primary" style={{ fontSize: 13, padding: "8px 16px" }}>
+                                            Open Quiz in New Tab
+                                        </button>
+                                    </a>
+                                </div>
+                                <iframe
+                                    src={currentLesson.quiz_link.includes("docs.google.com/forms") ? currentLesson.quiz_link.replace(/\/(viewform|edit)(\?.*)?$/, "/viewform?embedded=true") : currentLesson.quiz_link}
+                                    width="100%"
+                                    height="100%"
+                                    style={{ border: "none", flex: 1, background: "var(--bg-primary)" }}
+                                    title="Lesson Quiz"
+                                >
+                                    Loading…
+                                </iframe>
+                                {!lessonProgress[currentLesson.id]?.completed && (
+                                    <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border)", background: "var(--bg-secondary)", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
+                                        <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
+                                            {(isTrackable && !hasWatchedVideo) ? "Watch the video to unlock completion." : "Finished the quiz?"}
+                                        </p>
+                                        <button
+                                            className={(!isTrackable || hasWatchedVideo) ? "btn-primary" : "btn-secondary"}
+                                            disabled={isTrackable && !hasWatchedVideo}
+                                            onClick={() => markComplete(currentLesson.id)}
+                                            style={{
+                                                padding: "10px 20px",
+                                                opacity: (isTrackable && !hasWatchedVideo) ? 0.6 : 1,
+                                                cursor: (isTrackable && !hasWatchedVideo) ? "not-allowed" : "pointer"
+                                            }}
+                                        >
+                                            <CheckCircle size={16} style={{ display: "inline", marginRight: 8, marginBottom: -3 }} />
+                                            Mark Lesson Complete
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -733,6 +850,20 @@ export default function LearnPageClient({
           #learn-menu-btn { display: none !important; }
         }
       `}</style>
+
+            {/* AI Chatbot - Course Context Aware */}
+            <AIChatbot
+                courseContext={{
+                    courseId: course.id,
+                    courseTitle: course.title,
+                    moduleTitle: currentLesson
+                        ? course.modules.find(m => m.lessons?.some(l => l.id === currentLesson.id))?.title
+                        : undefined,
+                    lessonTitle: currentLesson?.title,
+                    lessonDescription: currentLesson?.description || undefined,
+                    instructorNotes: currentLesson?.notes || undefined,
+                }}
+            />
         </div>
     );
 }
