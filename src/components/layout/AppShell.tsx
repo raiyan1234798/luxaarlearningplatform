@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useTheme } from "@/components/providers/ThemeProvider";
@@ -31,6 +31,7 @@ import {
     Sparkles,
     MessageSquare,
 } from "lucide-react";
+import AIChatbot from "@/components/ai/AIChatbot";
 
 interface AppShellProps {
     children: React.ReactNode;
@@ -851,6 +852,9 @@ export default function AppShell({ children, profile }: AppShellProps) {
           }
         }
       `}</style>
+
+            {/* Global AI Chatbot — available on all pages except learn page which has its own */}
+            {!pathname.includes("/courses/learn") && <AIChatbot />}
         </div>
     );
 }
